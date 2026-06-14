@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 
-const SOCKET_URL = "http://localhost:5000";
-
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
   bg:       "#080B14",
@@ -348,8 +346,7 @@ export default function AuraGridDashboard() {
   const [tokens,     setTokens]     = useState(0);
   const [migrating,  setMigrating]  = useState(false);
   const [aiNarration, setAiNarration] = useState("");
-  const [connected,  setConnected]  = useState(false);
-  const socketRef = useRef(null);
+  const [connected] = useState(false);
 
   function addEvent(type, icon, message) {
     const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
