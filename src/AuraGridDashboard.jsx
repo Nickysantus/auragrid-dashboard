@@ -422,52 +422,9 @@ export default function AuraGridDashboard() {
     setTimeout(() => clearInterval(tick), 30000);
   }
 
-  // ── Real Socket.IO connection ─────────────────────────────────
+// ── Real Socket.IO connection ─────────────────────────────────
   useEffect(() => {
-    let socket;
-    try {
-      // Dynamically import socket.io-client if available
-      import("https://cdn.socket.io/4.7.5/socket.io.esm.min.js").then(({ io }) => {
-        socket = io(SOCKET_URL, { transports: ["websocket"], timeout: 3000 });
-
-        socket.on("connect", () => {
-          setConnected(true);
-          addEvent("success", "🔌", `Connected to AuraGrid Coordinator — ID: ${socket.id}`);
-        });
-
-        socket.on("node:update", (data) => {
-          setNodes(prev => {
-            const idx = prev.findIndex(n => n.id === data.id);
-            if (idx === -1) return [...prev, data];
-            const updated = [...prev];
-            updated[idx] = { ...updated[idx], ...data };
-            return updated;
-          });
-        });
-
-        socket.on("migration:start", (data) => {
-          setMigrating(true);
-          addEvent("migration", "🔄", `Migration triggered: ${data.taskId} → ${data.targetNode}`);
-        });
-
-        socket.on("migration:complete", (data) => {
-          setMigrating(false);
-          setTokens(t => t + 0.0012);
-          addEvent("success", "✅", `Migration complete → ${data.targetNode}`);
-        });
-
-        socket.on("disconnect", () => {
-          setConnected(false);
-          addEvent("error", "❌", "Lost connection to coordinator");
-        });
-
-        socketRef.current = socket;
-      }).catch(() => {
-        addEvent("info", "ℹ️", "Live mode unavailable — click RUN DEMO to see simulation");
-      });
-    } catch (_) {}
-
-    return () => socket?.disconnect();
+    addEvent("info", "ℹ️", "Click ▶ RUN DEMO to see the full simulation");
   }, []);
 
   const onlineCount  = nodes.filter(n => n.status === "ONLINE").length;

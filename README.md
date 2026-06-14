@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
@@ -68,3 +69,7 @@ This section has moved here: [https://facebook.github.io/create-react-app/docs/d
 ### `npm run build` fails to minify
 
 This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+=======
+# auragrid-dashboard
+AuraGrid Live Command Center — A real-time DePIN network dashboard that visualizes live node telemetry, power grid stability and passive token earnings across decentralized solar-powered Infrastructure nodes. AI-narrated migration decisions — giving operators a real-time view of workload resilience across the AuraGrid network.
+>>>>>>> 6a24030add7a99896c2178f15a1d39ba237e5cde
