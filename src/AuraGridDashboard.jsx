@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 
+const SOCKET_URL = "https://auragrid-coordinator.onrender.com";
+
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
   bg:       "#080B14",
@@ -420,9 +422,22 @@ export default function AuraGridDashboard() {
   }
 
 // ── Real Socket.IO connection ─────────────────────────────────
-  useEffect(() => {
-    addEvent("info", "ℹ️", "Click ▶ RUN DEMO to see the full simulation");
-  }, []);
+ useEffect(() => {
+  const script = document.createElement("script");
+  script.src = "https://cdn.socket.io/4.7.5/socket.io.min.js";
+  script.onload = () => {
+    const socket = window.io("https://auragrid-coordinator.onrender.com");
+    socket.on("connect", () => {
+      setConnected(true);
+      addEvent("success", "🔌", `Live connection to AuraGrid — ${socket.id}`);
+    });
+    socket.on("disconnect", () => {
+      setConnected(false);
+      addEvent("error", "❌", "Lost connection to coordinator");
+    });
+  };
+  document.body.appendChild(script);
+}, []);
 
   const onlineCount  = nodes.filter(n => n.status === "ONLINE").length;
   const unstableCount = nodes.filter(n => n.status === "UNSTABLE").length;
