@@ -1,7 +1,5 @@
 import { useState, useEffect, useRef } from "react";
 
-const socket = window.io(SOCKET_URL);
-
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
   bg:       "#080B14",
@@ -348,7 +346,7 @@ export default function AuraGridDashboard() {
   const [tokens,     setTokens]     = useState(0);
   const [migrating,  setMigrating]  = useState(false);
   const [aiNarration, setAiNarration] = useState("");
-  const [connected] = useState(false);
+  const [connected, setConnected] = useState(false);
 
   function addEvent(type, icon, message) {
     const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
@@ -432,10 +430,12 @@ export default function AuraGridDashboard() {
 
 // ── Real Socket.IO connection ─────────────────────────────────
 useEffect(() => {
+  const COORDINATOR_URL = "https://auragrid-coordinator.onrender.com";
   import("socket.io-client").then(({ io }) => {
-    const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
+    const socket = io(COORDINATOR_URL, { transports: ["websocket", "polling"] });
 
     socket.on("connect", () => {
+      setConnected(true);
       addEvent("success", "🔌", `Live connection to AuraGrid Coordinator`);
     });
 
@@ -450,6 +450,7 @@ useEffect(() => {
     });
 
     socket.on("disconnect", () => {
+      setConnected(false);
       addEvent("error", "❌", "Lost connection to coordinator");
     });
 
