@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 
-const SOCKET_URL = "https://auragrid-coordinator.onrender.com";
+const socket = window.io(SOCKET_URL);
 
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
@@ -356,15 +356,24 @@ export default function AuraGridDashboard() {
   }
 
   // ── Simulate demo (works without real backend) ────────────────
-  function runDemo() {
-    const demoNodes = [
-      { id: "1", nodeName: "SolarHost-Anambra-01", ipAddress: "192.168.1.50", city: "Awka", state: "Anambra", status: "ONLINE", batteryLevel: 98, cpuUsage: 14.5, ramUsage: 42.1, trustScore: 82, powerStatus: "stable" },
-      { id: "2", nodeName: "SolarHost-Enugu-02",   ipAddress: "192.168.1.99", city: "Enugu", state: "Enugu", status: "ONLINE", batteryLevel: 95, cpuUsage: 8.2, ramUsage: 31.0, trustScore: 94, powerStatus: "stable" },
-    ];
-    setNodes(demoNodes);
-    addEvent("info", "📡", "AuraGrid network initialized — 2 nodes online");
-    addEvent("info", "☀️", "Node Enugu: Solar power stable at 95% battery");
-    addEvent("info", "🔋", "Node Anambra: Inverter battery at 98%");
+  async function runDemo() {
+    let loadedNodes = [];
+    try {
+      const res = await fetch("https://auragrid-coordinator.onrender.com/api/nodes");
+      const data = await res.json();
+      loadedNodes = data.nodes;
+      setNodes(loadedNodes);
+      addEvent("success", "🌍", `${data.count} AuraGrid nodes loaded across Africa`);
+    } catch {
+      loadedNodes = [
+        { id: "1", nodeName: "SolarHost-Anambra-01", ipAddress: "192.168.1.50", city: "Awka", state: "Anambra", country: "Nigeria", status: "ONLINE", batteryLevel: 98, cpuUsage: 14.5, ramUsage: 42.1, trustScore: 82, powerStatus: "stable" },
+        { id: "2", nodeName: "SolarHost-Enugu-02", ipAddress: "192.168.1.99", city: "Enugu", state: "Enugu", country: "Nigeria", status: "ONLINE", batteryLevel: 95, cpuUsage: 8.2, ramUsage: 31.0, trustScore: 94, powerStatus: "stable" },
+      ];
+      setNodes(loadedNodes);
+      addEvent("info", "📡", "AuraGrid network initialized — demo nodes online");
+    }
+    addEvent("info", "☀️", "Solar nodes stable across West Africa");
+    addEvent("info", "🔋", "All nodes reporting battery levels above 90%");
 
     // Simulate NEPA outage after 4s
     setTimeout(() => {
@@ -422,21 +431,30 @@ export default function AuraGridDashboard() {
   }
 
 // ── Real Socket.IO connection ─────────────────────────────────
- useEffect(() => {
-  const script = document.createElement("script");
-  script.src = "https://cdn.socket.io/4.7.5/socket.io.min.js";
-  script.onload = () => {
-    const socket = window.io("https://auragrid-coordinator.onrender.com");
+useEffect(() => {
+  import("socket.io-client").then(({ io }) => {
+    const socket = io(SOCKET_URL, { transports: ["websocket", "polling"] });
+
     socket.on("connect", () => {
-      setConnected(true);
-      addEvent("success", "🔌", `Live connection to AuraGrid — ${socket.id}`);
+      addEvent("success", "🔌", `Live connection to AuraGrid Coordinator`);
     });
+
+    socket.on("node:update", (data) => {
+      setNodes(prev => {
+        const idx = prev.findIndex(n => n.id === data.id);
+        if (idx === -1) return [...prev, data];
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], ...data };
+        return updated;
+      });
+    });
+
     socket.on("disconnect", () => {
-      setConnected(false);
       addEvent("error", "❌", "Lost connection to coordinator");
     });
-  };
-  document.body.appendChild(script);
+
+    return () => socket.disconnect();
+  });
 }, []);
 
   const onlineCount  = nodes.filter(n => n.status === "ONLINE").length;
@@ -471,12 +489,13 @@ export default function AuraGridDashboard() {
         color: C.text,
         fontFamily: "'Space Grotesk', sans-serif",
         padding: "0 0 40px",
+        overflowX: "hidden",
       }}>
 
         {/* Header */}
         <div style={{
           borderBottom: `1px solid ${C.border}`,
-          padding: "16px 28px",
+          padding: "16px clamp(12px, 4vw, 28px)",
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
@@ -560,7 +579,7 @@ export default function AuraGridDashboard() {
           </div>
         </div>
 
-        <div style={{ padding: "24px 28px", display: "flex", flexDirection: "column", gap: 20 }}>
+        <div style={{ padding: "clamp(12px, 4vw, 24px) clamp(12px, 4vw, 28px)", display: "flex", flexDirection: "column", gap: 20 }}>
 
           {/* AI Narration Banner */}
           {aiNarration && (
@@ -602,8 +621,9 @@ export default function AuraGridDashboard() {
           )}
 
           {/* Main grid */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 340px", gap: 20 }}>
-
+           <div style={{ display: "grid", 
+            gridTemplateColumns: window.innerWidth < 768 ? "1fr" : "1fr 340px", 
+            gap: 20 }}>
             {/* Left: Canvas + node cards */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
@@ -697,7 +717,7 @@ export default function AuraGridDashboard() {
             color: C.muted,
             fontFamily: "monospace",
           }}>
-            <span>AuraGrid DePIN Network · Built at Lablab.ai Hackathon · Team: Nicky, Abdoul, Ian, Naimat, Kamso</span>
+            <span>AuraGrid DePIN Network · Built at Lablab.ai Hackathon · Team: NickySantus, Abdoul, Naimat, Kamso</span>
             <span style={{ color: C.cyan }}>Powered by Band AI · Ollama · Socket.IO · PostgreSQL</span>
           </div>
         </div>
