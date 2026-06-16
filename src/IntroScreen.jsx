@@ -17,7 +17,7 @@ export default function IntroScreen({ onDone }) {
     const t3 = setTimeout(() => setPhase(3), 2800);
     const t4 = setTimeout(() => onDone(), 3600);
     return () => [t1, t2, t3, t4].forEach(clearTimeout);
-  }, []);
+  }, [onDone]);
 
   return (
     <div style={{
