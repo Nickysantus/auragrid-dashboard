@@ -62,18 +62,13 @@ function GridCanvas({ nodes, migrating }) {
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
 
-    const positions = {
-      "SolarHost-Anambra-01": { x: 0.25, y: 0.5 },
-      "SolarHost-Enugu-02":   { x: 0.75, y: 0.5 },
-    };
-
-    // Assign positions dynamically for up to 6 nodes
-    const angles = [Math.PI * 0.8, Math.PI * 0.2, Math.PI * 1.2, Math.PI * 1.8, Math.PI * 0.5, Math.PI * 1.5];
+    const positions = {};
     nodes.forEach((n, i) => {
-      if (!positions[n.nodeName]) {
-        const a = angles[i % angles.length];
-        positions[n.nodeName] = { x: 0.5 + Math.cos(a) * 0.35, y: 0.5 + Math.sin(a) * 0.38 };
-      }
+      const total = nodes.length;
+      const a = (i / total) * Math.PI * 2 - Math.PI / 2;
+      const rx = total <= 4 ? 0.32 : 0.38;
+      const ry = total <= 4 ? 0.32 : 0.38;
+      positions[n.nodeName] = { x: 0.5 + Math.cos(a) * rx, y: 0.5 + Math.sin(a) * ry };
     });
 
     function draw() {
@@ -89,10 +84,8 @@ function GridCanvas({ nodes, migrating }) {
         for (let y = 0; y < H; y += 32)
           ctx.fillRect(x, y, 1, 1);
 
-      const nodeList = nodes.length >= 2 ? nodes : [
-        { nodeName: "SolarHost-Anambra-01", status: "ONLINE",   trustScore: 80 },
-        { nodeName: "SolarHost-Enugu-02",   status: "OFFLINE",  trustScore: 0  },
-      ];
+      const nodeList = nodes;
+      if (nodeList.length === 0) return;
 
       // Draw connections
       for (let i = 0; i < nodeList.length; i++) {
