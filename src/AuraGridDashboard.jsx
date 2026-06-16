@@ -63,13 +63,20 @@ function GridCanvas({ nodes, migrating }) {
     const ctx = canvas.getContext("2d");
 
     const positions = {};
-    nodes.forEach((n, i) => {
-      const total = nodes.length;
-      const a = (i / total) * Math.PI * 2 - Math.PI / 2;
-      const rx = total <= 4 ? 0.32 : 0.38;
-      const ry = total <= 4 ? 0.32 : 0.38;
-      positions[n.nodeName] = { x: 0.5 + Math.cos(a) * rx, y: 0.5 + Math.sin(a) * ry };
-    });
+const posSource = nodes.length > 0 ? nodes : [
+  { nodeName: "SolarHost-Anambra-01" },
+  { nodeName: "SolarHost-Accra-01"   },
+  { nodeName: "SolarHost-Nairobi-01" },
+  { nodeName: "SolarHost-Karachi-01" },
+  { nodeName: "SolarHost-Dakar-01"   },
+];
+posSource.forEach((n, i) => {
+  const total = posSource.length;
+  const a = (i / total) * Math.PI * 2 - Math.PI / 2;
+  const rx = total <= 4 ? 0.32 : 0.38;
+  const ry = total <= 4 ? 0.32 : 0.38;
+  positions[n.nodeName] = { x: 0.5 + Math.cos(a) * rx, y: 0.5 + Math.sin(a) * ry };
+});
 
     function draw() {
       const W = canvas.width  = canvas.offsetWidth;
@@ -84,8 +91,15 @@ function GridCanvas({ nodes, migrating }) {
         for (let y = 0; y < H; y += 32)
           ctx.fillRect(x, y, 1, 1);
 
-      const nodeList = nodes;
-      if (nodeList.length === 0) return;
+      const nodeList = nodes.length > 0 ? nodes : [
+  { nodeName: "SolarHost-Anambra-01", status: "ONLINE", trustScore: 80.55, city: "Awka",    state: "Anambra",       country: "Nigeria"  },
+  { nodeName: "SolarHost-Accra-01",   status: "ONLINE", trustScore: 50,    city: "Accra",   state: "Greater Accra", country: "Ghana"    },
+  { nodeName: "SolarHost-Nairobi-01", status: "ONLINE", trustScore: 50,    city: "Nairobi", state: "Nairobi",       country: "Kenya"    },
+  { nodeName: "SolarHost-Karachi-01", status: "ONLINE", trustScore: 80.58, city: "Karachi", state: "Sindh",         country: "Pakistan" },
+  { nodeName: "SolarHost-Dakar-01",   status: "ONLINE", trustScore: 50,    city: "Dakar",   state: "Dakar",         country: "Senegal"  },
+];
+if (nodeList.length === 0) return;
+      
 
       // Draw connections
       for (let i = 0; i < nodeList.length; i++) {
@@ -258,7 +272,7 @@ function NodeCard({ node }) {
       </div>
 
       <div style={{ fontSize: 10, color: C.muted, fontFamily: "monospace" }}>
-        {node.city}, {node.state} · {node.ipAddress}
+        {node.city}, {node.state}, {node.country} · {node.ipAddress}
       </div>
     </div>
   );
@@ -354,18 +368,16 @@ export default function AuraGridDashboard() {
       const data = await res.json();
       loadedNodes = data.nodes;
       setNodes(loadedNodes);
-      addEvent("success", "🌍", `${data.count} AuraGrid nodes loaded across Africa`);
-    } catch {
-      loadedNodes = [
-        { id: "1", nodeName: "SolarHost-Anambra-01", ipAddress: "192.168.1.50", city: "Awka", state: "Anambra", country: "Nigeria", status: "ONLINE", batteryLevel: 98, cpuUsage: 14.5, ramUsage: 42.1, trustScore: 82, powerStatus: "stable" },
-        { id: "2", nodeName: "SolarHost-Enugu-02", ipAddress: "192.168.1.99", city: "Enugu", state: "Enugu", country: "Nigeria", status: "ONLINE", batteryLevel: 95, cpuUsage: 8.2, ramUsage: 31.0, trustScore: 94, powerStatus: "stable" },
-      ];
-      setNodes(loadedNodes);
-      addEvent("info", "📡", "AuraGrid network initialized — demo nodes online");
+      addEvent("success", "🌍", `${data.count} AuraGrid nodes loaded across Africa & Asia`);
+    } catch (err) {
+      addEvent("error", "❌", `Could not reach coordinator: ${err.message}`);
+      addEvent("info", "🔄", "Try clicking RUN DEMO again in ~30s (Render may be waking up)");
+      return;
     }
-    addEvent("info", "☀️", "Solar nodes stable across West Africa");
-    addEvent("info", "🔋", "All nodes reporting battery levels above 90%");
 
+    addEvent("info", "☀️", "Solar nodes stable across Africa & Asia");
+    addEvent("info", "🔋", `All ${loadedNodes.length} nodes reporting battery levels`);
+    
    // Simulate NEPA outage after 4s
 setTimeout(() => {
   const onlineNodes = loadedNodes.filter(n => n.status === "ONLINE");
@@ -529,7 +541,7 @@ useEffect(() => {
                 AuraGrid
               </div>
               <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", letterSpacing: 2 }}>
-                DEPIN COORDINATOR v1.0
+                GLOBAL DEPIN NETWORK v1.0
               </div>
             </div>
           </div>
@@ -723,7 +735,7 @@ useEffect(() => {
             color: C.muted,
             fontFamily: "monospace",
           }}>
-            <span>AuraGrid DePIN Network · Built at Lablab.ai Hackathon · Team: NickySantus, Abdoul, Naimat, Kamso</span>
+            <span>AuraGrid DePIN Network · Built at Lablab.ai Hackathon · Team: NickySantus, Abdoul Rahim, Ian Kusapali, Naimat Khan, Kamso Daniel.</span>
             <span style={{ color: C.cyan }}>Powered by Band AI · Ollama · Socket.IO · PostgreSQL</span>
           </div>
         </div>
