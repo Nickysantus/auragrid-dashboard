@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import IntroScreen from "./IntroScreen";
 
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
@@ -281,7 +282,10 @@ function NodeCard({ node }) {
 // ── Migration event log ────────────────────────────────────────
 function EventLog({ events }) {
   const bottomRef = useRef(null);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); }, [events]);
+  useEffect(() => {
+  const el = bottomRef.current?.parentElement;
+  if (el) el.scrollTop = el.scrollHeight;
+}, [events]);
 
   return (
     <div style={{
@@ -354,6 +358,7 @@ export default function AuraGridDashboard() {
   const [migrating,  setMigrating]  = useState(false);
   const [aiNarration, setAiNarration] = useState("");
   const [connected, setConnected] = useState(false);
+  const [showIntro, setShowIntro] = useState(true);
 
   function addEvent(type, icon, message) {
     const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
@@ -377,7 +382,14 @@ export default function AuraGridDashboard() {
 
     addEvent("info", "☀️", "Solar nodes stable across Africa & Asia");
     addEvent("info", "🔋", `All ${loadedNodes.length} nodes reporting battery levels`);
-    
+
+    // Simulate realistic metrics for nodes that have 0 cpu/ram
+setNodes(loadedNodes.map(n => ({
+  ...n,
+  cpuUsage:  n.cpuUsage  > 0 ? n.cpuUsage  : parseFloat((Math.random() * 30 + 5).toFixed(1)),
+  ramUsage:  n.ramUsage  > 0 ? n.ramUsage  : parseFloat((Math.random() * 40 + 20).toFixed(1)),
+})));
+
    // Simulate NEPA outage after 4s
 setTimeout(() => {
   const onlineNodes = loadedNodes.filter(n => n.status === "ONLINE");
@@ -480,6 +492,7 @@ useEffect(() => {
 
   return (
     <>
+      {showIntro && <IntroScreen onDone={() => setShowIntro(false)} />}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700;800&family=JetBrains+Mono:wght@400;700&display=swap');
         * { box-sizing: border-box; margin: 0; padding: 0; }
