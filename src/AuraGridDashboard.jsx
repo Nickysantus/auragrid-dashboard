@@ -165,13 +165,13 @@ if (nodeList.length === 0) return;
 
         // Glow ring
         ctx.beginPath();
-        ctx.arc(x, y, 28 + pulse * 6, 0, Math.PI * 2);
+        ctx.arc(x, y, 18 + pulse * 4, 0, Math.PI * 2);
         ctx.fillStyle = col.replace(")", `,${0.06 + pulse * 0.06})`).replace("rgb", "rgba");
         ctx.fill();
 
         // Node circle
         ctx.beginPath();
-        ctx.arc(x, y, 22, 0, Math.PI * 2);
+        ctx.arc(x, y, 15, 0, Math.PI * 2);
         ctx.fillStyle = C.surface;
         ctx.strokeStyle = col;
         ctx.lineWidth = 2;
@@ -181,21 +181,21 @@ if (nodeList.length === 0) return;
         // Trust arc
         const trustAngle = ((n.trustScore ?? 0) / 100) * Math.PI * 2;
         ctx.beginPath();
-        ctx.arc(x, y, 22, -Math.PI / 2, -Math.PI / 2 + trustAngle);
+        ctx.arc(x, y, 15, -Math.PI / 2, -Math.PI / 2 + trustAngle);
         ctx.strokeStyle = trustColor(n.trustScore ?? 0);
         ctx.lineWidth = 3;
         ctx.stroke();
 
         // Label
         ctx.fillStyle = C.text;
-        ctx.font = "bold 11px 'JetBrains Mono', monospace";
+        ctx.font = "bold 9px 'JetBrains Mono', monospace";
         ctx.textAlign = "center";
         const label = n.nodeName?.replace("SolarHost-", "").replace(/-\d+$/, "") ?? "Node";
-        ctx.fillText(label, x, y + 42);
+        ctx.fillText(label, x, y + 28);
 
         ctx.fillStyle = col;
-        ctx.font = "10px 'JetBrains Mono', monospace";
-        ctx.fillText(fmt(n.trustScore ?? 0) + " TS", x, y + 56);
+        ctx.font = "9px 'JetBrains Mono', monospace";
+        ctx.fillText(fmt(n.trustScore ?? 0) + " TS", x, y + 39);
       });
 
       animRef.current = requestAnimationFrame(draw);
@@ -665,7 +665,7 @@ useEffect(() => {
                 background: C.surface,
                 border: `1px solid ${C.border}`,
                 borderRadius: 12,
-                height: 320,
+                height: 400,
                 overflow: "hidden",
                 position: "relative",
               }}>
