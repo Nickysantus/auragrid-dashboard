@@ -375,7 +375,7 @@ export default function AuraGridDashboard() {
       setNodes(loadedNodes);
       addEvent("success", "🌍", `${data.count} AuraGrid nodes loaded across Africa & Asia`);
     } catch (err) {
-      addEvent("error", "❌", `Could not reach coordinator: ${err.message}`);
+      addEvent("error", "📡", `Coordinator connection paused — reconnecting: ${err.message}`);
       addEvent("info", "🔄", "Try clicking RUN DEMO again in ~30s (Render may be waking up)");
       return;
     }
@@ -461,7 +461,12 @@ setTimeout(() => {
 useEffect(() => {
   const COORDINATOR_URL = "https://auragrid-coordinator.onrender.com";
   import("socket.io-client").then(({ io }) => {
-    const socket = io(COORDINATOR_URL, { transports: ["websocket", "polling"] });
+    const socket = io(COORDINATOR_URL, { 
+  transports: ["websocket", "polling"],
+  reconnection: true,
+  reconnectionAttempts: Infinity,
+  reconnectionDelay: 2000,
+});
 
     socket.on("connect", () => {
       setConnected(true);
@@ -480,7 +485,16 @@ useEffect(() => {
 
     socket.on("disconnect", () => {
       setConnected(false);
-      addEvent("error", "❌", "Lost connection to coordinator");
+      addEvent("error", "📡", "Coordinator connection paused — reconnecting...");
+    });
+
+    socket.on("reconnecting", () => {
+      addEvent("info", "🔄", "Reconnecting to AuraGrid Coordinator...");
+    });
+
+    socket.on("reconnect", () => {
+      setConnected(true);
+      addEvent("success", "🔌", "Reconnected to AuraGrid Coordinator");
     });
 
     return () => socket.disconnect();
