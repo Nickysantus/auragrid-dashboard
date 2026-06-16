@@ -561,7 +561,7 @@ useEffect(() => {
 
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {/* Status pills */}
-            <div style={{ display: "flex", gap: 8 }}>
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {[
                 { label: "ONLINE",   count: onlineCount,   color: C.green },
                 { label: "UNSTABLE", count: unstableCount, color: C.amber },
@@ -583,7 +583,9 @@ useEffect(() => {
             {/* Connection indicator */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: connected ? C.green : C.muted, fontFamily: "monospace" }}>
               <PulseDot color={connected ? C.green : C.muted} />
-              {connected ? "LIVE" : "DEMO"}
+              <span style={{ display: window.innerWidth < 480 ? "none" : "inline" }}>
+                {connected ? "LIVE" : "DEMO"}
+              </span>
             </div>
 
             {/* Run demo button */}
@@ -653,7 +655,7 @@ useEffect(() => {
 
           {/* Main grid */}
            <div style={{ display: "grid", 
-            gridTemplateColumns: window.innerWidth < 768 ? "1fr" : "1fr 340px", 
+            gridTemplateColumns: window.innerWidth < 900 ? "1fr" : "1fr 340px",
             gap: 20 }}>
             {/* Left: Canvas + node cards */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
@@ -663,7 +665,7 @@ useEffect(() => {
                 background: C.surface,
                 border: `1px solid ${C.border}`,
                 borderRadius: 12,
-                height: 260,
+                height: 320,
                 overflow: "hidden",
                 position: "relative",
               }}>
@@ -721,7 +723,8 @@ useEffect(() => {
                   { label: "Total Nodes",       value: nodes.length,                              color: C.cyan  },
                   { label: "Migrations Today",  value: Math.floor(tokens / 0.0012),               color: C.amber },
                   { label: "Avg Trust Score",   value: nodes.length ? fmt(nodes.reduce((a, n) => a + (n.trustScore ?? 0), 0) / nodes.length) : "—", color: C.green },
-                  { label: "Network Uptime",    value: "99.8%",                                   color: C.green },
+                  { label: "Countries",      value: [...new Set(nodes.map(n => n.country))].length || "—", color: C.cyan  },
+                  { label: "Network Uptime", value: "99.8%",                                               color: C.green },
                 ].map(s => (
                   <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: 12, color: C.dim, fontFamily: "monospace" }}>{s.label}</span>
