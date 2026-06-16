@@ -390,11 +390,21 @@ setNodes(loadedNodes.map(n => ({
   ramUsage:  n.ramUsage  > 0 ? n.ramUsage  : parseFloat((Math.random() * 40 + 20).toFixed(1)),
 })));
 
-   // Simulate NEPA outage after 4s
+  // Simulate NEPA outage after 4s
 setTimeout(() => {
   const onlineNodes = loadedNodes.filter(n => n.status === "ONLINE");
   const failNode = onlineNodes[Math.floor(Math.random() * onlineNodes.length)];
-  const recoverNode = onlineNodes.find(n => n.id !== failNode.id && n.trustScore >= 50);
+
+  // Filter to eligible recovery candidates (not the failing node, trust ≥ 50)
+  const candidates = onlineNodes.filter(n => n.id !== failNode.id && (n.trustScore ?? 0) >= 50);
+
+  // Weighted random: higher trust = more likely, but never guaranteed
+  const totalWeight = candidates.reduce((sum, n) => sum + (n.trustScore ?? 50), 0);
+  let rand = Math.random() * totalWeight;
+  let recoverNode = candidates[candidates.length - 1]; // safe fallback
+  for (const n of candidates) {
+    rand -= (n.trustScore ?? 50); if (rand <= 0) { recoverNode = n; break; }
+  }
 
   addEvent("error", "⚡", `GRID ALERT — NEPA power failure detected in ${failNode.city}!`);
   setNodes(prev => prev.map(n =>
