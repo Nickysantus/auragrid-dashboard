@@ -373,55 +373,67 @@ export default function AuraGridDashboard() {
     addEvent("info", "☀️", "Solar nodes stable across West Africa");
     addEvent("info", "🔋", "All nodes reporting battery levels above 90%");
 
-    // Simulate NEPA outage after 4s
-    setTimeout(() => {
-      addEvent("error", "⚡", "GRID ALERT — NEPA power failure detected in Anambra!");
-      setNodes(prev => prev.map(n =>
-        n.nodeName === "SolarHost-Anambra-01"
-          ? { ...n, status: "UNSTABLE", batteryLevel: 12, powerStatus: "unstable", trustScore: 61 }
-          : n
-      ));
-      setAiNarration("⚡ Grid instability detected on Node Anambra. Battery critical at 12%...");
-      setMigrating(true);
-    }, 4000);
+   // Simulate NEPA outage after 4s
+setTimeout(() => {
+  const onlineNodes = loadedNodes.filter(n => n.status === "ONLINE");
+  const failNode = onlineNodes[Math.floor(Math.random() * onlineNodes.length)];
+  const recoverNode = onlineNodes.find(n => n.id !== failNode.id && n.trustScore >= 50);
+
+  addEvent("error", "⚡", `GRID ALERT — NEPA power failure detected in ${failNode.city}!`);
+  setNodes(prev => prev.map(n =>
+    n.id === failNode.id
+      ? { ...n, status: "UNSTABLE", batteryLevel: 12, powerStatus: "unstable", trustScore: 61 }
+      : n
+  ));
+  setAiNarration(`⚡ Grid instability on ${failNode.nodeName} (${failNode.country}). Battery critical at 12%...`);
+  setMigrating(true);
+
+  // Store for later use
+  window._failNode = failNode;
+  window._recoverNode = recoverNode;
+}, 4000);
 
     // AI analysis
     setTimeout(() => {
-      addEvent("migration", "🧠", "AI Router: Running trust score analysis across network...");
-      setAiNarration("🧠 Analysing available nodes... Node Enugu: Trust Score 94.2, Battery 95%, Latency 0.8ms — selected as migration target.");
-    }, 5500);
+  const recover = window._recoverNode;
+  addEvent("migration", "🧠", "AI Router: Running trust score analysis across network...");
+  setAiNarration(`🧠 Analysing nodes... ${recover?.nodeName} (${recover?.country}): Trust Score ${recover?.trustScore}, Battery ${recover?.batteryLevel}% — selected as migration target.`);
+}, 5500);
 
     // Migration
     setTimeout(() => {
-      addEvent("migration", "🔄", "Checkpoint freeze initiated — workload state captured at step_3");
-      addEvent("migration", "🚀", "Atomic migration: llama3-7b-inference → SolarHost-Enugu-02");
-      setAiNarration("🚀 Migrating workload to Node Enugu. Checkpoint frozen at execution layer step_3...");
-    }, 7000);
+  const recover = window._recoverNode;
+  addEvent("migration", "🔄", "Checkpoint freeze initiated — workload state captured at step_3");
+  addEvent("migration", "🚀", `Atomic migration: llama3-7b-inference → ${recover?.nodeName}`);
+  setAiNarration(`🚀 Migrating workload to ${recover?.city}, ${recover?.country}. Checkpoint frozen at step_3...`);
+}, 7000);
 
     // Success
     setTimeout(() => {
-      setNodes(prev => prev.map(n =>
-        n.nodeName === "SolarHost-Enugu-02"
-          ? { ...n, cpuUsage: 38.7, ramUsage: 61.2, trustScore: 96 }
-          : n
-      ));
-      addEvent("success", "✅", "Workload LIVE on Node Enugu — zero data loss");
-      addEvent("success", "💰", "Node Enugu earning: +0.0012 AUR for hosting migrated task");
-      setAiNarration("✅ Migration complete. Workload running on Node Enugu. Node Baby is now earning passive income from the sun.");
+  const recover = window._recoverNode;
+  setNodes(prev => prev.map(n =>
+    n.id === recover?.id
+      ? { ...n, cpuUsage: 38.7, ramUsage: 61.2, trustScore: 96 }
+      : n
+  ));
+  addEvent("success", "✅", `Workload LIVE on ${recover?.nodeName} — zero data loss`);
+  addEvent("success", "💰", `${recover?.city} node earning: +0.0012 AUR for hosting migrated task`);
+  setAiNarration(`✅ Migration complete. Workload running on ${recover?.nodeName} in ${recover?.country}. Earning passive income from solar power.`);
       setMigrating(false);
       setTokens(t => t + 0.0012);
     }, 9000);
 
     // Recovery
     setTimeout(() => {
-      setNodes(prev => prev.map(n =>
-        n.nodeName === "SolarHost-Anambra-01"
-          ? { ...n, status: "OFFLINE", batteryLevel: 8 }
-          : n
-      ));
-      addEvent("info", "🔴", "Node Anambra: Gracefully taken offline — awaiting power restore");
-      setAiNarration("🔴 Node Anambra offline. Network stable. Workload protected on solar-powered Node Enugu.");
-    }, 11000);
+  const fail = window._failNode;
+  setNodes(prev => prev.map(n =>
+    n.id === fail?.id
+      ? { ...n, status: "OFFLINE", batteryLevel: 8 }
+      : n
+  ));
+  addEvent("info", "🔴", `${fail?.nodeName} (${fail?.city}): Gracefully taken offline — awaiting power restore`);
+  setAiNarration(`🔴 ${fail?.city} offline. Network stable. Workload protected on solar-powered node in ${window._recoverNode?.country}.`);
+}, 11000);
 
     // Token ticking
     const tick = setInterval(() => setTokens(t => t + 0.0001), 1500);
