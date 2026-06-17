@@ -787,7 +787,7 @@ export default function AuraGridDashboard() {
       </div>
 
       {/* ⚡ Passing dynamic telemetery summaries into 'hint' handles answering user voice questions! */}
-      <VoiceAgent hint={getTelemetrySummaryString()} nodes={nodes} />
+      <VoiceAgent aiNarration={aiNarration} hint={getTelemetrySummaryString()} nodes={nodes} />
     </>
   );
 }

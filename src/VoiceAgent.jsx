@@ -114,7 +114,7 @@ function PulseRing({ color, active }) {
 }
 
 // ── Main VoiceAgent component ──────────────────────────────────
-export default function VoiceAgent({ aiNarration, nodes }) {
+export default function VoiceAgent({ aiNarration, hint, nodes }) {
   const [mode,       setMode]       = useState("idle");   // idle | listening | thinking | speaking
   const [transcript, setTranscript] = useState("");
   const [reply,      setReply]      = useState("");
