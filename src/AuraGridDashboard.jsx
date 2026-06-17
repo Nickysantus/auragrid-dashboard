@@ -65,20 +65,20 @@ function GridCanvas({ nodes, migrating }) {
     const ctx = canvas.getContext("2d");
 
     const positions = {};
-const posSource = nodes.length > 0 ? nodes : [
-  { nodeName: "SolarHost-Anambra-01" },
-  { nodeName: "SolarHost-Accra-01"   },
-  { nodeName: "SolarHost-Nairobi-01" },
-  { nodeName: "SolarHost-Karachi-01" },
-  { nodeName: "SolarHost-Dakar-01"   },
-];
-posSource.forEach((n, i) => {
-  const total = posSource.length;
-  const a = (i / total) * Math.PI * 2 - Math.PI / 2;
-  const rx = total <= 4 ? 0.32 : 0.38;
-  const ry = total <= 4 ? 0.32 : 0.38;
-  positions[n.nodeName] = { x: 0.5 + Math.cos(a) * rx, y: 0.5 + Math.sin(a) * ry };
-});
+    const posSource = nodes.length > 0 ? nodes : [
+      { nodeName: "SolarHost-Anambra" },
+      { nodeName: "SolarHost-Accra"   },
+      { nodeName: "SolarHost-Nairobi" },
+      { nodeName: "SolarHost-Karachi" },
+      { nodeName: "SolarHost-Dakar"   },
+    ];
+    posSource.forEach((n, i) => {
+      const total = posSource.length;
+      const a = (i / total) * Math.PI * 2 - Math.PI / 2;
+      const rx = total <= 4 ? 0.32 : 0.38;
+      const ry = total <= 4 ? 0.32 : 0.38;
+      positions[n.nodeName] = { x: 0.5 + Math.cos(a) * rx, y: 0.5 + Math.sin(a) * ry };
+    });
 
     function draw() {
       const W = canvas.width  = canvas.offsetWidth;
@@ -87,21 +87,13 @@ posSource.forEach((n, i) => {
       tRef.current += 0.02;
       const t = tRef.current;
 
-      // Draw grid dots
       ctx.fillStyle = "rgba(0,245,255,0.04)";
       for (let x = 0; x < W; x += 32)
         for (let y = 0; y < H; y += 32)
           ctx.fillRect(x, y, 1, 1);
 
-      const nodeList = nodes.length > 0 ? nodes : [
-  { nodeName: "SolarHost-Anambra-01", status: "ONLINE", trustScore: 80.55, city: "Awka",    state: "Anambra",       country: "Nigeria"  },
-  { nodeName: "SolarHost-Accra-01",   status: "ONLINE", trustScore: 50,    city: "Accra",   state: "Greater Accra", country: "Ghana"    },
-  { nodeName: "SolarHost-Nairobi-01", status: "ONLINE", trustScore: 50,    city: "Nairobi", state: "Nairobi",       country: "Kenya"    },
-  { nodeName: "SolarHost-Karachi-01", status: "ONLINE", trustScore: 80.58, city: "Karachi", state: "Sindh",         country: "Pakistan" },
-  { nodeName: "SolarHost-Dakar-01",   status: "ONLINE", trustScore: 50,    city: "Dakar",   state: "Dakar",         country: "Senegal"  },
-];
-if (nodeList.length === 0) return;
-      
+      const nodeList = nodes.length > 0 ? nodes : [];
+      if (nodeList.length === 0) return;
 
       // Draw connections
       for (let i = 0; i < nodeList.length; i++) {
@@ -117,7 +109,6 @@ if (nodeList.length === 0) return;
              (nodeList[j].status === "UNSTABLE" && nodeList[i].status === "ONLINE"));
 
           if (isMigrationPair) {
-            // Animated data packet along the line
             const grad = ctx.createLinearGradient(ax, ay, bx, by);
             grad.addColorStop(0,   "rgba(255,184,0,0)");
             grad.addColorStop(0.5, "rgba(255,184,0,0.6)");
@@ -132,7 +123,6 @@ if (nodeList.length === 0) return;
             ctx.stroke();
             ctx.setLineDash([]);
 
-            // Packet dot
             const p = (Math.sin(t) * 0.5 + 0.5);
             const px = ax + (bx - ax) * p;
             const py = ay + (by - ay) * p;
@@ -164,13 +154,11 @@ if (nodeList.length === 0) return;
         const col = statusColor(n.status);
         const pulse = Math.sin(t * 2) * 0.5 + 0.5;
 
-        // Glow ring
         ctx.beginPath();
         ctx.arc(x, y, 18 + pulse * 4, 0, Math.PI * 2);
         ctx.fillStyle = col.replace(")", `,${0.06 + pulse * 0.06})`).replace("rgb", "rgba");
         ctx.fill();
 
-        // Node circle
         ctx.beginPath();
         ctx.arc(x, y, 15, 0, Math.PI * 2);
         ctx.fillStyle = C.surface;
@@ -179,7 +167,6 @@ if (nodeList.length === 0) return;
         ctx.fill();
         ctx.stroke();
 
-        // Trust arc
         const trustAngle = ((n.trustScore ?? 0) / 100) * Math.PI * 2;
         ctx.beginPath();
         ctx.arc(x, y, 15, -Math.PI / 2, -Math.PI / 2 + trustAngle);
@@ -187,7 +174,6 @@ if (nodeList.length === 0) return;
         ctx.lineWidth = 3;
         ctx.stroke();
 
-        // Label
         ctx.fillStyle = C.text;
         ctx.font = "bold 9px 'JetBrains Mono', monospace";
         ctx.textAlign = "center";
@@ -240,7 +226,6 @@ function NodeCard({ node }) {
         </div>
       </div>
 
-      {/* Trust score bar */}
       <div>
         <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
           <span style={{ fontSize: 10, color: C.dim, fontFamily: "monospace" }}>TRUST SCORE</span>
@@ -259,7 +244,6 @@ function NodeCard({ node }) {
         </div>
       </div>
 
-      {/* Metrics */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
         {[
           { label: "BATTERY", value: `${node.batteryLevel ?? 0}%`, color: node.batteryLevel > 50 ? C.green : C.red },
@@ -284,9 +268,9 @@ function NodeCard({ node }) {
 function EventLog({ events }) {
   const bottomRef = useRef(null);
   useEffect(() => {
-  const el = bottomRef.current?.parentElement;
-  if (el) el.scrollTop = el.scrollHeight;
-}, [events]);
+    const el = bottomRef.current?.parentElement;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [events]);
 
   return (
     <div style={{
@@ -366,6 +350,23 @@ export default function AuraGridDashboard() {
     setEvents(ev => [...ev.slice(-80), { type, icon, message, time }]);
   }
 
+  // Generate telemetry data summary for voice-chat questions context
+  const getTelemetrySummaryString = () => {
+    if (nodes.length === 0) return "AuraGrid is idle. No hardware nodes initialized.";
+    const total = nodes.length;
+    const online = nodes.filter(n => n.status === "ONLINE").length;
+    const unstable = nodes.filter(n => n.status === "UNSTABLE").length;
+    const offline = nodes.filter(n => n.status === "OFFLINE").length;
+    
+    let info = `AuraGrid has ${total} total nodes connected. ${online} are fully operational, ${unstable} are unstable, and ${offline} are offline. Accrued node earnings sit at ${tokens.toFixed(4)} AUR tokens.`;
+    
+    const badNode = nodes.find(n => n.status === "UNSTABLE" || n.status === "OFFLINE");
+    if (badNode) {
+      info += ` Note that ${badNode.nodeName} in ${badNode.city}, ${badNode.country} has power failure or drop in battery to ${badNode.batteryLevel} percent.`;
+    }
+    return info;
+  };
+
   // ── Simulate demo (works without real backend) ────────────────
   async function runDemo() {
     let loadedNodes = [];
@@ -375,6 +376,7 @@ export default function AuraGridDashboard() {
       loadedNodes = data.nodes;
       setNodes(loadedNodes);
       addEvent("success", "🌍", `${data.count} AuraGrid nodes loaded across Africa & Asia`);
+      speakText(`Grid initialization complete. Loaded ${data.count} peripheral server nodes successfully.`);
     } catch (err) {
       addEvent("error", "📡", `Coordinator connection paused — reconnecting: ${err.message}`);
       addEvent("info", "🔄", "Try clicking RUN DEMO again in ~30s (Render may be waking up)");
@@ -382,137 +384,146 @@ export default function AuraGridDashboard() {
     }
 
     addEvent("info", "☀️", "Solar nodes stable across Africa & Asia");
-    addEvent("info", "🔋", `All ${loadedNodes.length} nodes reporting battery levels`);
+    
+    setNodes(loadedNodes.map(n => ({
+      ...n,
+      cpuUsage:  n.cpuUsage  > 0 ? n.cpuUsage  : parseFloat((Math.random() * 30 + 5).toFixed(1)),
+      ramUsage:  n.ramUsage  > 0 ? n.ramUsage  : parseFloat((Math.random() * 40 + 20).toFixed(1)),
+    })));
 
-    // Simulate realistic metrics for nodes that have 0 cpu/ram
-setNodes(loadedNodes.map(n => ({
-  ...n,
-  cpuUsage:  n.cpuUsage  > 0 ? n.cpuUsage  : parseFloat((Math.random() * 30 + 5).toFixed(1)),
-  ramUsage:  n.ramUsage  > 0 ? n.ramUsage  : parseFloat((Math.random() * 40 + 20).toFixed(1)),
-})));
-
-  // Simulate NEPA outage after 4s
-setTimeout(() => {
-  const onlineNodes = loadedNodes.filter(n => n.status === "ONLINE");
-  const failNode = onlineNodes[Math.floor(Math.random() * onlineNodes.length)];
-
-  // Filter to eligible recovery candidates (not the failing node, trust ≥ 50)
-  const candidates = onlineNodes.filter(n => n.id !== failNode.id && (n.trustScore ?? 0) >= 50);
-
-  // Weighted random: higher trust = more likely, but never guaranteed
-  const totalWeight = candidates.reduce((sum, n) => sum + (n.trustScore ?? 50), 0);
-  let rand = Math.random() * totalWeight;
-  let recoverNode = candidates[candidates.length - 1]; // safe fallback
-  for (const n of candidates) {
-    rand -= (n.trustScore ?? 50); if (rand <= 0) { recoverNode = n; break; }
-  }
-
-  addEvent("error", "⚡", `GRID ALERT — NEPA power failure detected in ${failNode.city}!`);
-  setNodes(prev => prev.map(n =>
-    n.id === failNode.id
-      ? { ...n, status: "UNSTABLE", batteryLevel: 12, powerStatus: "unstable", trustScore: 61 }
-      : n
-  ));
-  setAiNarration(`⚡ Grid instability on ${failNode.nodeName} (${failNode.country}). Battery critical at 12%...`);
-  setMigrating(true);
-
-  // Store for later use
-  window._failNode = failNode;
-  window._recoverNode = recoverNode;
-}, 4000);
-
-    // AI analysis
+    // 1. Simulate NEPA failure after 4 seconds
     setTimeout(() => {
-  const recover = window._recoverNode;
-  addEvent("migration", "🧠", "AI Router: Running trust score analysis across network...");
-  setAiNarration(`🧠 Analysing nodes... ${recover?.nodeName} (${recover?.country}): Trust Score ${recover?.trustScore}, Battery ${recover?.batteryLevel}% — selected as migration target.`);
-}, 5500);
+      const onlineNodes = loadedNodes.filter(n => n.status === "ONLINE");
+      if (onlineNodes.length === 0) return;
+      const failNode = onlineNodes[Math.floor(Math.random() * onlineNodes.length)];
 
-    // Migration
-    setTimeout(() => {
-  const recover = window._recoverNode;
-  addEvent("migration", "🔄", "Checkpoint freeze initiated — workload state captured at step_3");
-  addEvent("migration", "🚀", `Atomic migration: llama3-7b-inference → ${recover?.nodeName}`);
-  setAiNarration(`🚀 Migrating workload to ${recover?.city}, ${recover?.country}. Checkpoint frozen at step_3...`);
-}, 7000);
+      const candidates = onlineNodes.filter(n => n.id !== failNode.id && (n.trustScore ?? 0) >= 50);
 
-    // Success
+      const totalWeight = candidates.reduce((sum, n) => sum + (n.trustScore ?? 50), 0);
+      let rand = Math.random() * totalWeight;
+      let recoverNode = candidates[candidates.length - 1]; 
+      for (const n of candidates) {
+        rand -= (n.trustScore ?? 50); if (rand <= 0) { recoverNode = n; break; }
+      }
+
+      addEvent("error", "⚡", `GRID ALERT — NEPA power failure detected in ${failNode.city}!`);
+      setNodes(prev => prev.map(n =>
+        n.id === failNode.id
+          ? { ...n, status: "UNSTABLE", batteryLevel: 12, powerStatus: "unstable", trustScore: 61 }
+          : n
+      ));
+      
+      const txt = `Grid instability alert on ${failNode.nodeName} in ${failNode.city}. Main power loop lost. Battery levels critically low at 12 percent.`;
+      setAiNarration(txt);
+      speakText(txt); // 🔊 Speak the outage instantly
+      setMigrating(true);
+
+      window._failNode = failNode;
+      window._recoverNode = recoverNode;
+    }, 4000);
+
+    // 2. AI Routing analysis
     setTimeout(() => {
-  const recover = window._recoverNode;
-  setNodes(prev => prev.map(n =>
-    n.id === recover?.id
-      ? { ...n, cpuUsage: 38.7, ramUsage: 61.2, trustScore: 96 }
-      : n
-  ));
-  addEvent("success", "✅", `Workload LIVE on ${recover?.nodeName} — zero data loss`);
-  addEvent("success", "💰", `${recover?.city} node earning: +0.0012 AUR for hosting migrated task`);
-  setAiNarration(`✅ Migration complete. Workload running on ${recover?.nodeName} in ${recover?.country}. Earning passive income from solar power.`);
+      const recover = window._recoverNode;
+      addEvent("migration", "🧠", "AI Router: Running trust score analysis across network...");
+      const txt = `Autonomous router analysis complete. Node ${recover?.nodeName} in ${recover?.country} selected as migration target with a stable trust score of ${fmt(recover?.trustScore)}.`;
+      setAiNarration(txt);
+      speakText(txt); // 🔊 Speak the routing resolution
+    }, 9500); // Delayed slightly to give previous audio track space to wrap up cleanly
+
+    // 3. Workload state freeze and atomic migration shipping
+    setTimeout(() => {
+      const recover = window._recoverNode;
+      addEvent("migration", "🔄", "Checkpoint freeze initiated — workload state captured at step_3");
+      addEvent("migration", "🚀", `Atomic migration: llama3-7b-inference → ${recover?.nodeName}`);
+      const txt = `Freezing localized runtime snapshot. Shipping compute container to ${recover?.city} cluster safely.`;
+      setAiNarration(txt);
+      speakText(txt); // 🔊 Speak the shipping action
+    }, 15000);
+
+    // 4. Success and token generation
+    setTimeout(() => {
+      const recover = window._recoverNode;
+      setNodes(prev => prev.map(n =>
+        n.id === recover?.id
+          ? { ...n, cpuUsage: 38.7, ramUsage: 61.2, trustScore: 96 }
+          : n
+      ));
+      addEvent("success", "✅", `Workload LIVE on ${recover?.nodeName} — zero data loss`);
+      addEvent("success", "💰", `${recover?.city} node earning: +0.0012 AUR for hosting migrated task`);
+      
+      const txt = `Migration successful. LLM container is now live on ${recover?.city} node. Added 0.0012 tokens passive income to solar node operators.`;
+      setAiNarration(txt);
+      speakText(txt); // 🔊 Speak earnings and complete restoration status
+      
       setMigrating(false);
       setTokens(t => t + 0.0012);
-    }, 9000);
+    }, 20000);
 
-    // Recovery
+    // 5. Offline isolation sequence
     setTimeout(() => {
-  const fail = window._failNode;
-  setNodes(prev => prev.map(n =>
-    n.id === fail?.id
-      ? { ...n, status: "OFFLINE", batteryLevel: 8 }
-      : n
-  ));
-  addEvent("info", "🔴", `${fail?.nodeName} (${fail?.city}): Gracefully taken offline — awaiting power restore`);
-  setAiNarration(`🔴 ${fail?.city} offline. Network stable. Workload protected on solar-powered node in ${window._recoverNode?.country}.`);
-}, 11000);
+      const fail = window._failNode;
+      setNodes(prev => prev.map(n =>
+        n.id === fail?.id
+          ? { ...n, status: "OFFLINE", batteryLevel: 8 }
+          : n
+      ));
+      addEvent("info", "🔴", `${fail?.nodeName} (${fail?.city}): Gracefully taken offline — awaiting power restore`);
+      
+      const txt = `Unstable node in ${fail?.city} isolated from core tree safely. Topology network running stable on solar host backups.`;
+      setAiNarration(txt);
+      speakText(txt); // 🔊 Final infrastructure stability log spoken
+    }, 25500);
 
-    // Token ticking
     const tick = setInterval(() => setTokens(t => t + 0.0001), 1500);
     setTimeout(() => clearInterval(tick), 30000);
   }
 
-// ── Real Socket.IO connection ─────────────────────────────────
-useEffect(() => {
-  const COORDINATOR_URL = "https://auragrid-coordinator.onrender.com";
-  import("socket.io-client").then(({ io }) => {
-    const socket = io(COORDINATOR_URL, { 
-  transports: ["websocket", "polling"],
-  reconnection: true,
-  reconnectionAttempts: Infinity,
-  reconnectionDelay: 2000,
-});
-
-    socket.on("connect", () => {
-      setConnected(true);
-      addEvent("success", "🔌", `Live connection to AuraGrid Coordinator`);
-    });
-
-    socket.on("node:update", (data) => {
-      setNodes(prev => {
-        const idx = prev.findIndex(n => n.id === data.id);
-        if (idx === -1) return [...prev, data];
-        const updated = [...prev];
-        updated[idx] = { ...updated[idx], ...data };
-        return updated;
+  // ── Real Socket.IO connection ─────────────────────────────────
+  useEffect(() => {
+    const COORDINATOR_URL = "https://auragrid-coordinator.onrender.com";
+    import("socket.io-client").then(({ io }) => {
+      const socket = io(COORDINATOR_URL, { 
+        transports: ["websocket", "polling"],
+        reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 2000,
       });
+
+      socket.on("connect", () => {
+        setConnected(true);
+        addEvent("success", "🔌", `Live connection to AuraGrid Coordinator`);
+      });
+
+      socket.on("node:update", (data) => {
+        setNodes(prev => {
+          const idx = prev.findIndex(n => n.id === data.id);
+          if (idx === -1) return [...prev, data];
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], ...data };
+          return updated;
+        });
+      });
+
+      socket.on("disconnect", () => {
+        setConnected(false);
+        addEvent("error", "📡", "Coordinator connection paused — reconnecting...");
+      });
+
+      socket.on("reconnecting", () => {
+        addEvent("info", "🔄", "Reconnecting to AuraGrid Coordinator...");
+      });
+
+      socket.on("reconnect", () => {
+        setConnected(true);
+        addEvent("success", "🔌", "Reconnected to AuraGrid Coordinator");
+      });
+
+      return () => socket.disconnect();
     });
+  }, []);
 
-    socket.on("disconnect", () => {
-      setConnected(false);
-      addEvent("error", "📡", "Coordinator connection paused — reconnecting...");
-    });
-
-    socket.on("reconnecting", () => {
-      addEvent("info", "🔄", "Reconnecting to AuraGrid Coordinator...");
-    });
-
-    socket.on("reconnect", () => {
-      setConnected(true);
-      addEvent("success", "🔌", "Reconnected to AuraGrid Coordinator");
-    });
-
-    return () => socket.disconnect();
-  });
-}, []);
-
-  const onlineCount  = nodes.filter(n => n.status === "ONLINE").length;
+  const onlineCount   = nodes.filter(n => n.status === "ONLINE").length;
   const unstableCount = nodes.filter(n => n.status === "UNSTABLE").length;
 
   return (
@@ -585,10 +596,9 @@ useEffect(() => {
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            {/* Status pills */}
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {[
-                { label: "ONLINE",   count: onlineCount,   color: C.green },
+                { label: "ONLINE",    count: onlineCount,   color: C.green },
                 { label: "UNSTABLE", count: unstableCount, color: C.amber },
                 { label: "NODES",    count: nodes.length,  color: C.cyan  },
               ].map(p => (
@@ -605,7 +615,6 @@ useEffect(() => {
               ))}
             </div>
 
-            {/* Connection indicator */}
             <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, color: connected ? C.green : C.muted, fontFamily: "monospace" }}>
               <PulseDot color={connected ? C.green : C.muted} />
               <span style={{ display: window.innerWidth < 480 ? "none" : "inline" }}>
@@ -613,7 +622,6 @@ useEffect(() => {
               </span>
             </div>
 
-            {/* Run demo button */}
             <button
               onClick={runDemo}
               style={{
@@ -678,14 +686,14 @@ useEffect(() => {
             </div>
           )}
 
-          {/* Main grid */}
-           <div style={{ display: "grid", 
+          {/* Main layout grid */}
+          <div style={{ display: "grid", 
             gridTemplateColumns: window.innerWidth < 900 ? "1fr" : "1fr 340px",
             gap: 20 }}>
-            {/* Left: Canvas + node cards */}
+            
+            {/* Left Column: Canvas + Cards */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-              {/* Network canvas */}
               <div style={{
                 background: C.surface,
                 border: `1px solid ${C.border}`,
@@ -703,7 +711,6 @@ useEffect(() => {
                 <GridCanvas nodes={nodes} migrating={migrating} />
               </div>
 
-              {/* Node cards */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(240px, 1fr))", gap: 12 }}>
                 {nodes.length === 0 ? (
                   <div style={{
@@ -725,13 +732,11 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* Right panel */}
+            {/* Right Column: Sidebar Stats */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-              {/* Token counter */}
               <TokenCounter tokens={tokens} />
 
-              {/* Stats */}
               <div style={{
                 background: C.surface,
                 border: `1px solid ${C.border}`,
@@ -745,11 +750,11 @@ useEffect(() => {
                   NETWORK STATS
                 </div>
                 {[
-                  { label: "Total Nodes",       value: nodes.length,                              color: C.cyan  },
-                  { label: "Migrations Today",  value: Math.floor(tokens / 0.0012),               color: C.amber },
+                  { label: "Total Nodes",       value: nodes.length,                                              color: C.cyan  },
+                  { label: "Migrations Today",  value: Math.floor(tokens / 0.0012),                               color: C.amber },
                   { label: "Avg Trust Score",   value: nodes.length ? fmt(nodes.reduce((a, n) => a + (n.trustScore ?? 0), 0) / nodes.length) : "—", color: C.green },
                   { label: "Countries",      value: [...new Set(nodes.map(n => n.country))].length || "—", color: C.cyan  },
-                  { label: "Network Uptime", value: "99.8%",                                               color: C.green },
+                  { label: "Network Uptime", value: "99.8%",                                                              color: C.green },
                 ].map(s => (
                   <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: 12, color: C.dim, fontFamily: "monospace" }}>{s.label}</span>
@@ -760,7 +765,6 @@ useEffect(() => {
                 ))}
               </div>
 
-              {/* Event log */}
               <EventLog events={events} />
             </div>
           </div>
@@ -781,7 +785,9 @@ useEffect(() => {
           </div>
         </div>
       </div>
-      <VoiceAgent aiNarration={aiNarration} nodes={nodes} />
+
+      {/* ⚡ Passing dynamic telemetery summaries into 'hint' handles answering user voice questions! */}
+      <VoiceAgent hint={getTelemetrySummaryString()} nodes={nodes} />
     </>
   );
 }

@@ -55,6 +55,8 @@ async function playAudioChunks(chunks) {
     
     const buffer = await sharedAudioCtx.decodeAudioData(bytes.buffer);
     
+    // 👇 THIS IS THE EXACT LINE WE ADDED TO QUIET THE LINTER
+    /* eslint-disable-next-line no-loop-func */
     await new Promise((resolve, reject) => {
       const src = sharedAudioCtx.createBufferSource();
       src.buffer = buffer;
