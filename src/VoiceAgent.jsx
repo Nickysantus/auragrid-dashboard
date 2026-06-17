@@ -27,21 +27,6 @@ const C = {
   dim:      "#8892A4",
 };
 
-// Singleton structure for running Audio contexts across re-renders
-let sharedAudioCtx = null;
-let activeAudioSource = null;
-
-function stopCurrentAudio() {
-  if (activeAudioSource) {
-    try {
-      activeAudioSource.stop();
-    } catch (e) {
-      // Already stopped
-    }
-    activeAudioSource = null;
-  }
-}
-
 // ── Play base64 audio chunks safely ────────────────────────────
 async function playAudioChunks(chunks) {
   unlockAudio();
@@ -166,7 +151,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
   // Clean up recording hardware context on unmount
   useEffect(() => {
     return () => {
-      stopCurrentAudio();
       if (mediaRef.current && mediaRef.current.state !== "inactive") {
         mediaRef.current.stop();
         mediaRef.current.stream.getTracks().forEach(t => t.stop());
@@ -180,7 +164,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
       // User-initiated speech is the one case where we DO interrupt —
       // you don't want to wait through a 5-item narration backlog
       // just to ask a question.
-      stopCurrentAudio();
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr     = new MediaRecorder(stream, { mimeType: "audio/webm" });
