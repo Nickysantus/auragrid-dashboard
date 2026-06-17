@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const COORDINATOR = "https://auragrid-coordinator.onrender.com";
 

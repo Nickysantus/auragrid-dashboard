@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import IntroScreen from "./IntroScreen";
-import VoiceAgent, { speakText } from "./VoiceAgent";
+import VoiceAgent from "./VoiceAgent";
 
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
