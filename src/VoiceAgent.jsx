@@ -15,7 +15,7 @@ const C = {
   dim:      "#8892A4",
 };
 
-// Audio helpers (shared across re-renders)
+// Audio helpers
 let sharedAudioCtx = null;
 let activeAudioSource = null;
 
@@ -59,20 +59,14 @@ export default function VoiceAgent({ aiNarration, nodes }) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [reply, setReply] = useState("");
-  const [mode, setMode] = useState("idle"); // idle | listening | thinking | speaking
+  const [mode, setMode] = useState("idle");
 
   const mediaRef = useRef(null);
   const chunksRef = useRef([]);
   const narrationQueueRef = useRef([]);
   const isDrainingRef = useRef(false);
 
-  // Auto-narrate dashboard events
-  useEffect(() => {
-    if (!aiNarration) return;
-    narrationQueueRef.current.push(aiNarration);
-    drainQueue();
-  }, [aiNarration]);
-
+  // Drain narration queue
   const drainQueue = async () => {
     if (isDrainingRef.current) return;
     isDrainingRef.current = true;
@@ -87,6 +81,13 @@ export default function VoiceAgent({ aiNarration, nodes }) {
     isDrainingRef.current = false;
     setMode("idle");
   };
+
+  // Auto-narrate when dashboard sends new aiNarration
+  useEffect(() => {
+    if (!aiNarration) return;
+    narrationQueueRef.current.push(aiNarration);
+    drainQueue();
+  }, [aiNarration, drainQueue]);
 
   async function speakText(text) {
     try {
@@ -110,7 +111,6 @@ export default function VoiceAgent({ aiNarration, nodes }) {
     }
   }
 
-  // Text Input Send
   const handleTextSend = async () => {
     if (!input.trim() || isLoading) return;
     setIsLoading(true);
@@ -123,7 +123,7 @@ export default function VoiceAgent({ aiNarration, nodes }) {
     setMode("idle");
   };
 
-  // Voice Recording
+  // Voice recording functions
   async function startListening() {
     stopCurrentAudio();
     try {
