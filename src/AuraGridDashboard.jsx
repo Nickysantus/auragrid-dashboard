@@ -79,7 +79,7 @@ function GridCanvas({ nodes, migrating }) {
         // Multi-ring spiral layout for large node counts
         const ring0 = 6;
         const ring1 = 10;
-        let ring, pos, count = 0;
+        let ring, pos;
         if (i < ring0) {
           ring = 0; pos = i;
         } else if (i < ring0 + ring1) {
