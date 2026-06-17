@@ -45,10 +45,7 @@ async function playAudioChunks(chunks) {
       src.connect(sharedAudioCtx.destination);
       activeAudioSource = src;
 
-      await new Promise(resolve => {
-        src.onended = resolve;
-        src.start();
-      });
+      await new Promise(resolve => { src.onended = resolve; src.start(); });
     } catch (e) {
       console.error("Audio chunk failed:", e);
     }
@@ -66,30 +63,8 @@ export default function VoiceAgent({ aiNarration, nodes }) {
   const narrationQueueRef = useRef([]);
   const isDrainingRef = useRef(false);
 
-  // Drain narration queue
-  const drainQueue = useCallback(async () => {
-    if (isDrainingRef.current) return;
-    isDrainingRef.current = true;
-
-    while (narrationQueueRef.current.length > 0) {
-      const text = narrationQueueRef.current.shift();
-      setMode("speaking");
-      try {
-        await speakText(text);
-      } catch (e) {}
-    }
-    isDrainingRef.current = false;
-    setMode("idle");
-  }, []);
-
-  // Auto-narrate when dashboard sends new aiNarration
-  useEffect(() => {
-    if (!aiNarration) return;
-    narrationQueueRef.current.push(aiNarration);
-    drainQueue();
-  }, [aiNarration, drainQueue]);
-
-  async function speakText(text) {
+  // Speak function
+  const speakText = useCallback(async (text) => {
     try {
       const res = await fetch(`${COORDINATOR}/api/ai/voice-chat`, {
         method: "POST",
@@ -109,7 +84,30 @@ export default function VoiceAgent({ aiNarration, nodes }) {
       console.error(err);
       setReply("Voice agent temporarily unavailable.");
     }
-  }
+  }, [nodes]);
+
+  // Drain narration queue
+  const drainQueue = useCallback(async () => {
+    if (isDrainingRef.current) return;
+    isDrainingRef.current = true;
+
+    while (narrationQueueRef.current.length > 0) {
+      const text = narrationQueueRef.current.shift();
+      setMode("speaking");
+      try {
+        await speakText(text);
+      } catch (e) {}
+    }
+    isDrainingRef.current = false;
+    setMode("idle");
+  }, [speakText]);
+
+  // Auto-narrate from dashboard
+  useEffect(() => {
+    if (!aiNarration) return;
+    narrationQueueRef.current.push(aiNarration);
+    drainQueue();
+  }, [aiNarration, drainQueue]);
 
   const handleTextSend = async () => {
     if (!input.trim() || isLoading) return;
