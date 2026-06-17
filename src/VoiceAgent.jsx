@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 
 const COORDINATOR = "https://auragrid-coordinator.onrender.com";
 
@@ -67,7 +67,7 @@ export default function VoiceAgent({ aiNarration, nodes }) {
   const isDrainingRef = useRef(false);
 
   // Drain narration queue
-  const drainQueue = async () => {
+  const drainQueue = useCallback(async () => {
     if (isDrainingRef.current) return;
     isDrainingRef.current = true;
 
@@ -80,7 +80,7 @@ export default function VoiceAgent({ aiNarration, nodes }) {
     }
     isDrainingRef.current = false;
     setMode("idle");
-  };
+  }, []);
 
   // Auto-narrate when dashboard sends new aiNarration
   useEffect(() => {
@@ -123,7 +123,7 @@ export default function VoiceAgent({ aiNarration, nodes }) {
     setMode("idle");
   };
 
-  // Voice recording functions
+  // Voice recording
   async function startListening() {
     stopCurrentAudio();
     try {
