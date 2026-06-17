@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect } from "react";
 
 const COORDINATOR = "https://auragrid-coordinator.onrender.com";
 
@@ -15,7 +15,7 @@ const C = {
   dim:      "#8892A4",
 };
 
-// Audio helpers
+// Audio helpers (shared across re-renders)
 let sharedAudioCtx = null;
 let activeAudioSource = null;
 
@@ -28,7 +28,9 @@ function stopCurrentAudio() {
 
 async function playAudioChunks(chunks) {
   if (!chunks?.length) return;
-  if (!sharedAudioCtx) sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (!sharedAudioCtx) {
+    sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
   if (sharedAudioCtx.state === "suspended") await sharedAudioCtx.resume();
 
   for (const chunk of chunks) {
@@ -36,43 +38,39 @@ async function playAudioChunks(chunks) {
       const binary = atob(chunk);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const buffer = await sharedAudioCtx.decodeAudioData(bytes.buffer);
 
+      const buffer = await sharedAudioCtx.decodeAudioData(bytes.buffer);
       const src = sharedAudioCtx.createBufferSource();
       src.buffer = buffer;
       src.connect(sharedAudioCtx.destination);
       activeAudioSource = src;
-      await new Promise(r => { src.onended = r; src.start(); });
-    } catch (e) { console.error(e); }
+
+      await new Promise(resolve => {
+        src.onended = resolve;
+        src.start();
+      });
+    } catch (e) {
+      console.error("Audio chunk failed:", e);
+    }
   }
 }
 
-// ── Main VoiceAgent ─────────────────────────────────────────────
 export default function VoiceAgent({ aiNarration, nodes }) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [mode, setMode] = useState("idle"); // idle | listening | thinking | speaking
-  const [transcript, setTranscript] = useState("");
   const [reply, setReply] = useState("");
-  const [open, setOpen] = useState(false);
-  const [log, setLog] = useState([]);
+  const [mode, setMode] = useState("idle"); // idle | listening | thinking | speaking
 
   const mediaRef = useRef(null);
   const chunksRef = useRef([]);
   const narrationQueueRef = useRef([]);
   const isDrainingRef = useRef(false);
 
-  const addLog = (type, text) => {
-    const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
-    setLog(l => [...l.slice(-30), { type, text, time }]);
-  };
-
-  // Auto-narration from dashboard
+  // Auto-narrate dashboard events
   useEffect(() => {
-    if (aiNarration) {
-      narrationQueueRef.current.push(aiNarration);
-      drainQueue();
-    }
+    if (!aiNarration) return;
+    narrationQueueRef.current.push(aiNarration);
+    drainQueue();
   }, [aiNarration]);
 
   const drainQueue = async () => {
@@ -84,7 +82,7 @@ export default function VoiceAgent({ aiNarration, nodes }) {
       setMode("speaking");
       try {
         await speakText(text);
-      } catch {}
+      } catch (e) {}
     }
     isDrainingRef.current = false;
     setMode("idle");
@@ -98,7 +96,7 @@ export default function VoiceAgent({ aiNarration, nodes }) {
         body: JSON.stringify({
           text: text,
           hint: nodes?.length 
-            ? `Live: ${nodes.length} nodes. ${nodes.filter(n => n.status === "ONLINE").length} online.` 
+            ? `Live network: ${nodes.length} nodes, ${nodes.filter(n => n.status === "ONLINE").length} online.` 
             : "Network is operational."
         }),
       });
@@ -108,11 +106,11 @@ export default function VoiceAgent({ aiNarration, nodes }) {
       if (data.audioChunksBase64) await playAudioChunks(data.audioChunksBase64);
     } catch (err) {
       console.error(err);
-      setReply("Sorry, voice agent unavailable.");
+      setReply("Voice agent temporarily unavailable.");
     }
   }
 
-  // Text Send
+  // Text Input Send
   const handleTextSend = async () => {
     if (!input.trim() || isLoading) return;
     setIsLoading(true);
@@ -125,21 +123,21 @@ export default function VoiceAgent({ aiNarration, nodes }) {
     setMode("idle");
   };
 
-  // Voice Recording (kept from your original)
+  // Voice Recording
   async function startListening() {
     stopCurrentAudio();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
       chunksRef.current = [];
-      mr.ondataavailable = e => e.data.size && chunksRef.current.push(e.data);
+      mr.ondataavailable = e => e.data.size > 0 && chunksRef.current.push(e.data);
       mr.onstop = handleRecordingStop;
       mr.start(250);
       mediaRef.current = mr;
       setMode("listening");
-      addLog("user", "🎙 Listening...");
     } catch (err) {
-      addLog("error", "Microphone access denied");
+      console.error(err);
+      setMode("idle");
     }
   }
 
@@ -154,27 +152,26 @@ export default function VoiceAgent({ aiNarration, nodes }) {
     setMode("thinking");
     const blob = new Blob(chunksRef.current, { type: "audio/webm" });
     const form = new FormData();
-    form.append("audio", blob, "voice.webm");
+    form.append("audio", blob);
 
     const hint = nodes?.length 
-      ? `Live snapshot: ${nodes.length} nodes.` 
-      : "Network is operational.";
+      ? `Live: ${nodes.length} nodes.` 
+      : "Network operational.";
 
     form.append("hint", hint);
 
     try {
-      const res = await fetch(`${COORDINATOR}/api/ai/voice-chat`, { method: "POST", body: form });
+      const res = await fetch(`${COORDINATOR}/api/ai/voice-chat`, {
+        method: "POST",
+        body: form,
+      });
       const data = await res.json();
 
-      setTranscript(data.userText || "Voice input");
-      setReply(data.agentText || "Processing...");
-
-      addLog("user", `You: ${data.userText}`);
-      addLog("agent", `AuraGrid: ${data.agentText}`);
-
+      if (data.agentText) setReply(data.agentText);
       if (data.audioChunksBase64) await playAudioChunks(data.audioChunksBase64);
     } catch (err) {
-      addLog("error", "Voice chat failed");
+      console.error(err);
+      setReply("Could not process voice input.");
     } finally {
       setMode("idle");
     }
@@ -186,68 +183,88 @@ export default function VoiceAgent({ aiNarration, nodes }) {
   };
 
   return (
-    <>
-      <style>{`
-        @keyframes voicePing { 0%,100% { transform: scale(1); opacity:0.5; } 50% { transform:scale(1.5); opacity:0; } }
-      `}</style>
-
-      <div style={{ position: "fixed", bottom: 24, left: "50%", transform: "translateX(-50%)", zIndex: 1000, width: "min(92vw, 560px)" }}>
-        <div style={{
-          background: C.surface,
-          border: `1px solid ${C.border}`,
-          borderRadius: 16,
-          padding: 16,
-          boxShadow: "0 10px 40px rgba(0,0,0,0.6)",
-        }}>
-          {/* Text Input */}
-          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-            <input
-              type="text"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === "Enter" && handleTextSend()}
-              placeholder="Type your question..."
-              style={{
-                flex: 1,
-                background: "#1A2540",
-                border: "none",
-                borderRadius: 10,
-                padding: "14px 16px",
-                color: C.text,
-                fontSize: 14,
-              }}
-            />
-            <button onClick={handleTextSend} disabled={isLoading || !input.trim()}
-              style={{ background: C.cyan, color: "#000", border: "none", borderRadius: 10, padding: "0 24px", fontWeight: 700 }}>
-              Send
-            </button>
-          </div>
-
-          {/* Mic Button */}
-          <button
-            onClick={handleMicPress}
+    <div style={{
+      position: "fixed",
+      bottom: 24,
+      left: "50%",
+      transform: "translateX(-50%)",
+      zIndex: 1000,
+      width: "min(92vw, 560px)",
+    }}>
+      <div style={{
+        background: C.surface,
+        border: `1px solid ${C.border}`,
+        borderRadius: 16,
+        padding: 16,
+        boxShadow: "0 10px 40px rgba(0,0,0,0.6)",
+      }}>
+        {/* Text Input */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <input
+            type="text"
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && handleTextSend()}
+            placeholder="Type your question... (e.g. network status?)"
             style={{
-              width: "100%",
-              padding: "14px",
-              background: mode === "listening" ? C.red : C.cyan,
+              flex: 1,
+              background: "#1A2540",
+              border: "none",
+              borderRadius: 10,
+              padding: "14px 16px",
+              color: C.text,
+              fontSize: 14,
+            }}
+          />
+          <button 
+            onClick={handleTextSend} 
+            disabled={isLoading || !input.trim()}
+            style={{
+              background: C.cyan,
               color: "#000",
               border: "none",
-              borderRadius: 12,
+              borderRadius: 10,
+              padding: "0 28px",
               fontWeight: 700,
-              fontSize: 15,
-              cursor: "pointer",
+              cursor: isLoading ? "not-allowed" : "pointer",
             }}
           >
-            {mode === "listening" ? "⏹ Stop Recording" : "🎙 Speak"}
+            {isLoading ? "..." : "Send"}
           </button>
-
-          {reply && (
-            <div style={{ marginTop: 12, padding: 12, background: "#00FF8822", borderRadius: 10, color: C.green }}>
-              🤖 {reply}
-            </div>
-          )}
         </div>
+
+        {/* Mic Button */}
+        <button
+          onClick={handleMicPress}
+          style={{
+            width: "100%",
+            padding: "14px",
+            background: mode === "listening" ? C.red : C.cyan,
+            color: "#000",
+            border: "none",
+            borderRadius: 12,
+            fontWeight: 700,
+            fontSize: 15,
+            cursor: "pointer",
+          }}
+        >
+          {mode === "listening" ? "⏹ Stop & Send" : "🎙 Speak to AuraGrid"}
+        </button>
+
+        {reply && (
+          <div style={{
+            marginTop: 12,
+            padding: 14,
+            background: "#00FF8822",
+            borderRadius: 10,
+            color: C.green,
+            fontSize: 13.5,
+            lineHeight: 1.5,
+          }}>
+            🤖 {reply}
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 }
