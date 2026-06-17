@@ -66,11 +66,11 @@ function GridCanvas({ nodes, migrating }) {
 
     const positions = {};
     const posSource = nodes.length > 0 ? nodes : [
-      { nodeName: "SolarHost-Anambra" },
-      { nodeName: "SolarHost-Accra"   },
-      { nodeName: "SolarHost-Nairobi" },
-      { nodeName: "SolarHost-Karachi" },
-      { nodeName: "SolarHost-Dakar"   },
+      { nodeName: "SolarHost-Anambra-01" },
+      { nodeName: "SolarHost-Accra-01"   },
+      { nodeName: "SolarHost-Nairobi-01" },
+      { nodeName: "SolarHost-Karachi-01" },
+      { nodeName: "SolarHost-Dakar-01"   },
     ];
     posSource.forEach((n, i) => {
       const total = posSource.length;
@@ -706,7 +706,7 @@ export default function AuraGridDashboard() {
                   position: "absolute", top: 12, left: 16, zIndex: 2,
                   fontSize: 10, color: C.dim, fontFamily: "monospace", letterSpacing: 2,
                 }}>
-                  NETWORK TOPOLOGY
+                  NETWORK GLOBAL
                 </div>
                 <GridCanvas nodes={nodes} migrating={migrating} />
               </div>
