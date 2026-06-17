@@ -67,7 +67,7 @@ async function playAudioChunks(chunks) {
 // ── Speak a text string via TTS endpoint ──────────────────────
 export async function speakText(text) {
   try {
-    const res = await fetch(`${BACKEND_URL}/api/ai/tts`, {
+    const res = await fetch(`${COORDINATOR}/api/ai/tts`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, lang: "en" }),
@@ -118,16 +118,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
   const prevNarRef   = useRef("");
   const playbackIdRef = useRef(0);
   
-  <div
-  onClick={unlockAudio}
-  style={{
-    background: C.surface,
-    border: `1px solid ${expanded ? C.cyan : C.border}44`,
-    borderRadius: 12,
-    overflow: "hidden",
-    transition: "border-color 0.3s",
-  }}
-></div>
   // ── Narration queue ─────────────────────────────────────────
   // Every new narration is pushed here instead of interrupting
   // whatever is currently playing. A single worker loop drains it
