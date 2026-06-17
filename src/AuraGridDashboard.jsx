@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import IntroScreen from "./IntroScreen";
+import VoiceAgent, { speakText } from "./VoiceAgent";
 
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
@@ -780,6 +781,7 @@ useEffect(() => {
           </div>
         </div>
       </div>
+      <VoiceAgent aiNarration={aiNarration} nodes={nodes} />
     </>
   );
 }
