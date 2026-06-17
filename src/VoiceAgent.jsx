@@ -34,17 +34,12 @@ function stopCurrentAudio() {
 async function playAudioChunks(chunks) {
   if (!chunks || chunks.length === 0) return;
 
-  // Lazily instantiate a single shared window AudioContext
   if (!sharedAudioCtx) {
     sharedAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
-  
-  // Resume context if browser suspended it due to user interaction policies
   if (sharedAudioCtx.state === "suspended") {
     await sharedAudioCtx.resume();
   }
-
-  stopCurrentAudio();
 
   for (const chunk of chunks) {
     const binary = atob(chunk);
@@ -52,26 +47,21 @@ async function playAudioChunks(chunks) {
     for (let i = 0; i < binary.length; i++) {
       bytes[i] = binary.charCodeAt(i);
     }
-    
+
     const buffer = await sharedAudioCtx.decodeAudioData(bytes.buffer);
-    
-    // 👇 THIS IS THE EXACT LINE WE ADDED TO QUIET THE LINTER
+
     /* eslint-disable-next-line no-loop-func */
     await new Promise((resolve, reject) => {
       const src = sharedAudioCtx.createBufferSource();
       src.buffer = buffer;
       src.connect(sharedAudioCtx.destination);
       activeAudioSource = src;
-      
+
       src.onended = () => {
         if (activeAudioSource === src) activeAudioSource = null;
         resolve();
       };
-      
-      src.onerror = (err) => {
-        reject(err);
-      };
-      
+      src.onerror = (err) => reject(err);
       src.start();
     });
   }
@@ -115,43 +105,62 @@ function PulseRing({ color, active }) {
 
 // ── Main VoiceAgent component ──────────────────────────────────
 export default function VoiceAgent({ aiNarration, hint, nodes }) {
-  const [mode,       setMode]       = useState("idle");   // idle | listening | thinking | speaking
+  const [mode,       setMode]       = useState("idle");   // idle | listening | thinking | speaking | queued
   const [transcript, setTranscript] = useState("");
   const [reply,      setReply]      = useState("");
   const [open,       setOpen]       = useState(false);
   const [log,        setLog]        = useState([]);
+  const [queueLen,   setQueueLen]   = useState(0);
 
-  const mediaRef    = useRef(null);
-  const chunksRef   = useRef([]);
-  const prevNarRef  = useRef("");
+  const mediaRef     = useRef(null);
+  const chunksRef    = useRef([]);
+  const prevNarRef   = useRef("");
   const playbackIdRef = useRef(0);
+
+  // ── Narration queue ─────────────────────────────────────────
+  // Every new narration is pushed here instead of interrupting
+  // whatever is currently playing. A single worker loop drains it
+  // one at a time, so five migrations in 10s become five full
+  // sentences spoken back to back, never overlapping or cut off.
+  const narrationQueueRef = useRef([]);
+  const isDrainingRef     = useRef(false);
 
   const addLog = useCallback((type, text) => {
     const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
     setLog(l => [...l.slice(-30), { type, text, time }]);
   }, []);
 
-  // Auto-narrate when aiNarration context updates from dashboard
+  const drainQueue = useCallback(async () => {
+    if (isDrainingRef.current) return;
+    isDrainingRef.current = true;
+
+    while (narrationQueueRef.current.length > 0) {
+      const next = narrationQueueRef.current.shift();
+      setQueueLen(narrationQueueRef.current.length);
+      setMode("speaking");
+      addLog("announce", next);
+      try {
+        await speakText(next);
+      } catch (err) {
+        console.error("Queued narration playback error:", err);
+      }
+    }
+
+    isDrainingRef.current = false;
+    setMode("idle");
+  }, [addLog]);
+
+  // Auto-narrate when aiNarration context updates from dashboard.
+  // Pushes onto the queue instead of calling stopCurrentAudio(),
+  // so an in-progress sentence always finishes before the next starts.
   useEffect(() => {
     if (!aiNarration || aiNarration === prevNarRef.current) return;
     prevNarRef.current = aiNarration;
 
-    // Interrupt any voice chats currently reading out when system alert drops
-    stopCurrentAudio();
-    
-    const currentPlaybackId = ++playbackIdRef.current;
-    setMode("speaking");
-    addLog("announce", aiNarration);
-
-    speakText(aiNarration)
-      .catch((err) => console.error("Auto narration playback error:", err))
-      .finally(() => {
-        // Only return to idle if a newer narration cycle hasn't taken over
-        if (playbackIdRef.current === currentPlaybackId) {
-          setMode("idle");
-        }
-      });
-  }, [aiNarration, addLog]);
+    narrationQueueRef.current.push(aiNarration);
+    setQueueLen(narrationQueueRef.current.length);
+    drainQueue();
+  }, [aiNarration, drainQueue]);
 
   // Clean up recording hardware context on unmount
   useEffect(() => {
@@ -167,18 +176,21 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
   // ── Start recording ────────────────────────────────────────
   async function startListening() {
     try {
-      stopCurrentAudio(); // Mute background AI talk if user wants to speak
-      
+      // User-initiated speech is the one case where we DO interrupt —
+      // you don't want to wait through a 5-item narration backlog
+      // just to ask a question.
+      stopCurrentAudio();
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr     = new MediaRecorder(stream, { mimeType: "audio/webm" });
-      
+
       chunksRef.current = [];
       mr.ondataavailable = e => {
         if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
       };
       mr.onstop = handleRecordingStop;
-      
-      mr.start(250); // Slice data buffers smoothly
+
+      mr.start(250);
       mediaRef.current = mr;
       setMode("listening");
       addLog("user", "🎙 Listening...");
@@ -188,7 +200,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     }
   }
 
-  // ── Stop recording ─────────────────────────────────────────
   function stopListening() {
     if (mediaRef.current && mediaRef.current.state !== "inactive") {
       mediaRef.current.stop();
@@ -196,25 +207,37 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     }
   }
 
-  // ── Send to voice-chat endpoint ────────────────────────────
+  // ── Send to voice-chat endpoint (Ollama/Phi3 powered) ──────
+  // The "hint" field carries a live snapshot of node state so
+  // Phi3's reply is grounded in what the network is doing right now,
+  // not a stale or generic answer.
   async function handleRecordingStop() {
     setMode("thinking");
     const currentPlaybackId = ++playbackIdRef.current;
-    
+
     const blob = new Blob(chunksRef.current, { type: "audio/webm" });
     const form = new FormData();
     form.append("audio", blob, "voice.webm");
 
-    // Inject live dashboard metrics directly to system prompt context 
     const currentNodes = nodes || [];
     const onlineCount = currentNodes.filter(n => n.status === "ONLINE").length;
     const unstableCount = currentNodes.filter(n => n.status === "UNSTABLE").length;
+    const offlineCount = currentNodes.filter(n => n.status === "OFFLINE").length;
     const uniqueCountries = [...new Set(currentNodes.map(n => n.country || "").filter(Boolean))].length;
+    const avgTrust = currentNodes.length
+      ? (currentNodes.reduce((a, n) => a + (n.trustScore ?? 0), 0) / currentNodes.length).toFixed(1)
+      : "0";
+
+    // Most recent narration gives Phi3 context on "what just happened"
+    // in addition to the raw counts below.
+    const recentEvent = prevNarRef.current
+      ? ` Most recent network event: "${prevNarRef.current}".`
+      : "";
 
     const networkSummary = currentNodes.length
-      ? `Network context status: Total nodes registered is ${currentNodes.length}. Active online count is ${onlineCount}. Unstable power count is ${unstableCount}. Spread across ${uniqueCountries} regions globally.`
+      ? `Live network snapshot: ${currentNodes.length} total nodes. ${onlineCount} online, ${unstableCount} unstable, ${offlineCount} offline. Average trust score ${avgTrust}. Spread across ${uniqueCountries} countries.${recentEvent}`
       : "Network status: Core network setup phase. Waiting for nodes to join cluster.";
-      
+
     form.append("hint", networkSummary);
 
     try {
@@ -222,9 +245,9 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
         method: "POST",
         body:   form,
       });
-      
+
       if (!res.ok) throw new Error(`HTTP network error code ${res.status}`);
-      
+
       const data = await res.json();
 
       const userTxt = data.userText || "User audio query submitted";
@@ -232,7 +255,7 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
 
       setTranscript(userTxt);
       setReply(agentTxt);
-      
+
       addLog("user", `You: ${userTxt}`);
       addLog("agent", `AuraGrid: ${agentTxt}`);
 
@@ -245,7 +268,13 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
       setReply("Sorry, I couldn't reach the global coordination agent.");
     } finally {
       if (playbackIdRef.current === currentPlaybackId) {
-        setMode("idle");
+        // If narrations queued up while we were listening/thinking,
+        // hand control back to the drain loop instead of forcing idle.
+        if (narrationQueueRef.current.length > 0) {
+          drainQueue();
+        } else {
+          setMode("idle");
+        }
       }
     }
   }
@@ -253,23 +282,23 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
   function handleMicPress() {
     if (mode === "listening") {
       stopListening();
-    } else if (mode === "idle") {
+    } else if (mode === "idle" || mode === "speaking") {
       startListening();
     }
   }
 
   const micColor = {
-    idle:       C.cyan,
-    listening:  C.red,
-    thinking:   C.amber,
-    speaking:   C.green,
+    idle:      C.cyan,
+    listening: C.red,
+    thinking:  C.amber,
+    speaking:  C.green,
   }[mode] || C.cyan;
 
   const micLabel = {
-    idle:       "Ask AuraGrid",
-    listening:  "Tap to send",
-    thinking:   "Analyzing context...",
-    speaking:   "Speaking...",
+    idle:      "Ask AuraGrid",
+    listening: "Tap to send",
+    thinking:  "Analyzing context...",
+    speaking:  queueLen > 0 ? `Speaking... (${queueLen} queued)` : "Speaking...",
   }[mode] || "Ready";
 
   return (
@@ -285,10 +314,8 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
         }
       `}</style>
 
-      {/* Floating Widget interface layout */}
       <div style={{ position: "fixed", bottom: 28, right: 28, zIndex: 999, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 12 }}>
 
-        {/* Expanded Telemetry logs and chat logs panel */}
         {open && (
           <div style={{
             background: C.surface,
@@ -302,7 +329,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
             boxShadow: `0 12px 40px rgba(0,0,0,0.6)`,
             animation: "slideIn 0.2s ease",
           }}>
-            {/* Header section layout */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontSize: 16 }}>🎙</span>
@@ -319,7 +345,16 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
               </span>
             </div>
 
-            {/* Transcript render container */}
+            {queueLen > 0 && (
+              <div style={{
+                fontSize: 11, color: C.amber, fontFamily: "'JetBrains Mono', monospace",
+                background: `${C.amber}11`, border: `1px solid ${C.amber}33`,
+                borderRadius: 6, padding: "6px 10px",
+              }}>
+                ⏳ {queueLen} narration{queueLen > 1 ? "s" : ""} queued — finishing current sentence first
+              </div>
+            )}
+
             {transcript && (
               <div style={{ background: C.bg, borderRadius: 8, padding: "8px 12px", border: `1px solid ${C.border}` }}>
                 <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 4 }}>DECODED INPUT</div>
@@ -327,15 +362,13 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
               </div>
             )}
 
-            {/* AI Agent Answer container */}
             {reply && (
               <div style={{ background: `${C.cyan}0b`, border: `1px solid ${C.cyan}22`, borderRadius: 8, padding: "8px 12px" }}>
-                <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 4 }}>ROUTER FEEDBACK</div>
+                <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 4 }}>ROUTER FEEDBACK (Phi3)</div>
                 <div style={{ fontSize: 12, color: C.cyan, fontFamily: "'JetBrains Mono', monospace", lineHeight: "1.4" }}>{reply}</div>
               </div>
             )}
 
-            {/* Agent stream and context event logs */}
             <div style={{
               height: 110, overflowY: "auto",
               fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
@@ -355,7 +388,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
               )}
             </div>
 
-            {/* Primary Action Button */}
             <button
               onClick={handleMicPress}
               disabled={mode === "thinking"}
@@ -389,7 +421,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
           </div>
         )}
 
-        {/* Root Floating FAB control button layout element */}
         <button
           onClick={() => setOpen(o => !o)}
           style={{
