@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import IntroScreen from "./IntroScreen";
-import VoiceAgent, { speakText } from "./VoiceAgent";
+import VoiceAgent from "./VoiceAgent";
 
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
@@ -66,18 +66,41 @@ function GridCanvas({ nodes, migrating }) {
 
     const positions = {};
     const posSource = nodes.length > 0 ? nodes : [
-      { nodeName: "SolarHost-Anambra-01" },
-      { nodeName: "SolarHost-Accra-01"   },
-      { nodeName: "SolarHost-Nairobi-01" },
-      { nodeName: "SolarHost-Karachi-01" },
-      { nodeName: "SolarHost-Dakar-01"   },
+      { nodeName: "SolarHost-Anambra" },
+      { nodeName: "SolarHost-Accra"   },
+      { nodeName: "SolarHost-Nairobi" },
+      { nodeName: "SolarHost-Karachi" },
+      { nodeName: "SolarHost-Dakar"   },
     ];
+
     posSource.forEach((n, i) => {
       const total = posSource.length;
-      const a = (i / total) * Math.PI * 2 - Math.PI / 2;
-      const rx = total <= 4 ? 0.32 : 0.38;
-      const ry = total <= 4 ? 0.32 : 0.38;
-      positions[n.nodeName] = { x: 0.5 + Math.cos(a) * rx, y: 0.5 + Math.sin(a) * ry };
+      if (total > 10) {
+        // Multi-ring spiral layout for large node counts
+        const ring0 = 6;
+        const ring1 = 10;
+        let ring, pos, count = 0;
+        if (i < ring0) {
+          ring = 0; pos = i;
+        } else if (i < ring0 + ring1) {
+          ring = 1; pos = i - ring0;
+        } else {
+          ring = 2; pos = i - ring0 - ring1;
+        }
+        const ringCounts = [ring0, ring1, total - ring0 - ring1];
+        const radius = 0.15 + ring * 0.16;
+        const angle = (pos / ringCounts[ring]) * Math.PI * 2 - Math.PI / 2;
+        positions[n.nodeName] = {
+          x: 0.5 + Math.cos(angle) * radius,
+          y: 0.5 + Math.sin(angle) * radius,
+        };
+      } else {
+        const a = (i / total) * Math.PI * 2 - Math.PI / 2;
+        positions[n.nodeName] = {
+          x: 0.5 + Math.cos(a) * 0.35,
+          y: 0.5 + Math.sin(a) * 0.35,
+        };
+      }
     });
 
     function draw() {
@@ -87,17 +110,24 @@ function GridCanvas({ nodes, migrating }) {
       tRef.current += 0.02;
       const t = tRef.current;
 
+      // Background grid dots
       ctx.fillStyle = "rgba(0,245,255,0.04)";
       for (let x = 0; x < W; x += 32)
         for (let y = 0; y < H; y += 32)
           ctx.fillRect(x, y, 1, 1);
 
       const nodeList = nodes.length > 0 ? nodes : [];
-      if (nodeList.length === 0) return;
+      if (nodeList.length === 0) {
+        animRef.current = requestAnimationFrame(draw);
+        return;
+      }
 
-      // Draw connections
+      // Draw connections — only draw between nearby nodes to avoid clutter
       for (let i = 0; i < nodeList.length; i++) {
         for (let j = i + 1; j < nodeList.length; j++) {
+          // Limit connections to keep canvas readable with 20 nodes
+          if (nodeList.length > 10 && j - i > 4) continue;
+
           const a = positions[nodeList[i].nodeName];
           const b = positions[nodeList[j].nodeName];
           if (!a || !b) continue;
@@ -134,7 +164,7 @@ function GridCanvas({ nodes, migrating }) {
             ctx.fill();
             ctx.shadowBlur = 0;
           } else {
-            ctx.strokeStyle = "rgba(0,245,255,0.12)";
+            ctx.strokeStyle = "rgba(0,245,255,0.08)";
             ctx.lineWidth = 1;
             ctx.setLineDash([4, 8]);
             ctx.beginPath();
@@ -154,35 +184,39 @@ function GridCanvas({ nodes, migrating }) {
         const col = statusColor(n.status);
         const pulse = Math.sin(t * 2) * 0.5 + 0.5;
 
+        // Glow ring
         ctx.beginPath();
-        ctx.arc(x, y, 18 + pulse * 4, 0, Math.PI * 2);
-        ctx.fillStyle = col.replace(")", `,${0.06 + pulse * 0.06})`).replace("rgb", "rgba");
+        ctx.arc(x, y, 14 + pulse * 3, 0, Math.PI * 2);
+        ctx.fillStyle = col.replace(")", `,${0.05 + pulse * 0.05})`).replace("rgb", "rgba");
         ctx.fill();
 
+        // Node circle
         ctx.beginPath();
-        ctx.arc(x, y, 15, 0, Math.PI * 2);
+        ctx.arc(x, y, 11, 0, Math.PI * 2);
         ctx.fillStyle = C.surface;
         ctx.strokeStyle = col;
         ctx.lineWidth = 2;
         ctx.fill();
         ctx.stroke();
 
+        // Trust arc
         const trustAngle = ((n.trustScore ?? 0) / 100) * Math.PI * 2;
         ctx.beginPath();
-        ctx.arc(x, y, 15, -Math.PI / 2, -Math.PI / 2 + trustAngle);
+        ctx.arc(x, y, 11, -Math.PI / 2, -Math.PI / 2 + trustAngle);
         ctx.strokeStyle = trustColor(n.trustScore ?? 0);
-        ctx.lineWidth = 3;
+        ctx.lineWidth = 2.5;
         ctx.stroke();
 
+        // Label
         ctx.fillStyle = C.text;
-        ctx.font = "bold 9px 'JetBrains Mono', monospace";
+        ctx.font = "bold 7px 'JetBrains Mono', monospace";
         ctx.textAlign = "center";
         const label = n.nodeName?.replace("SolarHost-", "").replace(/-\d+$/, "") ?? "Node";
-        ctx.fillText(label, x, y + 28);
+        ctx.fillText(label, x, y + 22);
 
         ctx.fillStyle = col;
-        ctx.font = "9px 'JetBrains Mono', monospace";
-        ctx.fillText(fmt(n.trustScore ?? 0) + " TS", x, y + 39);
+        ctx.font = "7px 'JetBrains Mono', monospace";
+        ctx.fillText(fmt(n.trustScore ?? 0) + " TS", x, y + 31);
       });
 
       animRef.current = requestAnimationFrame(draw);
@@ -337,29 +371,52 @@ function TokenCounter({ tokens }) {
 
 // ── Main Dashboard ─────────────────────────────────────────────
 export default function AuraGridDashboard() {
-  const [nodes,      setNodes]      = useState([]);
-  const [events,     setEvents]     = useState([]);
-  const [tokens,     setTokens]     = useState(0);
-  const [migrating,  setMigrating]  = useState(false);
+  const [nodes,       setNodes]       = useState([]);
+  const [events,      setEvents]      = useState([]);
+  const [tokens,      setTokens]      = useState(0);
+  const [migrating,   setMigrating]   = useState(false);
   const [aiNarration, setAiNarration] = useState("");
-  const [connected, setConnected] = useState(false);
-  const [showIntro, setShowIntro] = useState(true);
+  const [connected,   setConnected]   = useState(false);
+  const [showIntro,   setShowIntro]   = useState(true);
+
+  // Queue-based narration: only speak one at a time, finish before next
+  const narrationQueue = useRef([]);
+  const isSpeaking     = useRef(false);
+
+  function queueNarration(text) {
+    narrationQueue.current.push(text);
+    if (!isSpeaking.current) processNarrationQueue();
+  }
+
+  function processNarrationQueue() {
+    if (narrationQueue.current.length === 0) {
+      isSpeaking.current = false;
+      return;
+    }
+    isSpeaking.current = true;
+    const next = narrationQueue.current.shift();
+    setAiNarration(next);
+    // VoiceAgent handles the actual speaking via aiNarration prop
+    // We wait estimated speech duration before processing next
+    const estimatedDuration = Math.max(3000, next.length * 60);
+    setTimeout(() => processNarrationQueue(), estimatedDuration);
+  }
 
   function addEvent(type, icon, message) {
     const time = new Date().toLocaleTimeString("en-GB", { hour12: false });
     setEvents(ev => [...ev.slice(-80), { type, icon, message, time }]);
   }
 
-  // Generate telemetry data summary for voice-chat questions context
+  // Generate telemetry summary for VoiceAgent hint
   const getTelemetrySummaryString = () => {
     if (nodes.length === 0) return "AuraGrid is idle. No hardware nodes initialized.";
-    const total = nodes.length;
-    const online = nodes.filter(n => n.status === "ONLINE").length;
+    const total    = nodes.length;
+    const online   = nodes.filter(n => n.status === "ONLINE").length;
     const unstable = nodes.filter(n => n.status === "UNSTABLE").length;
-    const offline = nodes.filter(n => n.status === "OFFLINE").length;
-    
+    const offline  = nodes.filter(n => n.status === "OFFLINE").length;
+
     let info = `AuraGrid has ${total} total nodes connected. ${online} are fully operational, ${unstable} are unstable, and ${offline} are offline. Accrued node earnings sit at ${tokens.toFixed(4)} AUR tokens.`;
-    
+
     const badNode = nodes.find(n => n.status === "UNSTABLE" || n.status === "OFFLINE");
     if (badNode) {
       info += ` Note that ${badNode.nodeName} in ${badNode.city}, ${badNode.country} has power failure or drop in battery to ${badNode.batteryLevel} percent.`;
@@ -367,16 +424,20 @@ export default function AuraGridDashboard() {
     return info;
   };
 
-  // ── Simulate demo (works without real backend) ────────────────
+  // ── Simulate demo ─────────────────────────────────────────────
   async function runDemo() {
+    // Clear any pending narrations from a previous run
+    narrationQueue.current = [];
+    isSpeaking.current = false;
+
     let loadedNodes = [];
     try {
-      const res = await fetch("https://auragrid-coordinator.onrender.com/api/nodes");
+      const res  = await fetch("https://auragrid-coordinator.onrender.com/api/nodes");
       const data = await res.json();
       loadedNodes = data.nodes;
       setNodes(loadedNodes);
       addEvent("success", "🌍", `${data.count} AuraGrid nodes loaded across Africa & Asia`);
-      speakText(`Grid initialization complete. Loaded ${data.count} peripheral server nodes successfully.`);
+      queueNarration(`Grid initialization complete. Loaded ${data.count} peripheral server nodes successfully.`);
     } catch (err) {
       addEvent("error", "📡", `Coordinator connection paused — reconnecting: ${err.message}`);
       addEvent("info", "🔄", "Try clicking RUN DEMO again in ~30s (Render may be waking up)");
@@ -384,26 +445,26 @@ export default function AuraGridDashboard() {
     }
 
     addEvent("info", "☀️", "Solar nodes stable across Africa & Asia");
-    
+
     setNodes(loadedNodes.map(n => ({
       ...n,
-      cpuUsage:  n.cpuUsage  > 0 ? n.cpuUsage  : parseFloat((Math.random() * 30 + 5).toFixed(1)),
-      ramUsage:  n.ramUsage  > 0 ? n.ramUsage  : parseFloat((Math.random() * 40 + 20).toFixed(1)),
+      cpuUsage: n.cpuUsage > 0 ? n.cpuUsage : parseFloat((Math.random() * 30 + 5).toFixed(1)),
+      ramUsage: n.ramUsage > 0 ? n.ramUsage : parseFloat((Math.random() * 40 + 20).toFixed(1)),
     })));
 
-    // 1. Simulate NEPA failure after 4 seconds
+    // 1. NEPA failure
     setTimeout(() => {
       const onlineNodes = loadedNodes.filter(n => n.status === "ONLINE");
       if (onlineNodes.length === 0) return;
       const failNode = onlineNodes[Math.floor(Math.random() * onlineNodes.length)];
 
-      const candidates = onlineNodes.filter(n => n.id !== failNode.id && (n.trustScore ?? 0) >= 50);
-
+      const candidates  = onlineNodes.filter(n => n.id !== failNode.id && (n.trustScore ?? 0) >= 50);
       const totalWeight = candidates.reduce((sum, n) => sum + (n.trustScore ?? 50), 0);
       let rand = Math.random() * totalWeight;
-      let recoverNode = candidates[candidates.length - 1]; 
+      let recoverNode = candidates[candidates.length - 1];
       for (const n of candidates) {
-        rand -= (n.trustScore ?? 50); if (rand <= 0) { recoverNode = n; break; }
+        rand -= (n.trustScore ?? 50);
+        if (rand <= 0) { recoverNode = n; break; }
       }
 
       addEvent("error", "⚡", `GRID ALERT — NEPA power failure detected in ${failNode.city}!`);
@@ -412,13 +473,11 @@ export default function AuraGridDashboard() {
           ? { ...n, status: "UNSTABLE", batteryLevel: 12, powerStatus: "unstable", trustScore: 61 }
           : n
       ));
-      
-      const txt = `Grid instability alert on ${failNode.nodeName} in ${failNode.city}. Main power loop lost. Battery levels critically low at 12 percent.`;
-      setAiNarration(txt);
-      speakText(txt); // 🔊 Speak the outage instantly
+
+      queueNarration(`Grid instability alert on ${failNode.nodeName} in ${failNode.city}. Main power loop lost. Battery levels critically low at 12 percent.`);
       setMigrating(true);
 
-      window._failNode = failNode;
+      window._failNode    = failNode;
       window._recoverNode = recoverNode;
     }, 4000);
 
@@ -426,22 +485,18 @@ export default function AuraGridDashboard() {
     setTimeout(() => {
       const recover = window._recoverNode;
       addEvent("migration", "🧠", "AI Router: Running trust score analysis across network...");
-      const txt = `Autonomous router analysis complete. Node ${recover?.nodeName} in ${recover?.country} selected as migration target with a stable trust score of ${fmt(recover?.trustScore)}.`;
-      setAiNarration(txt);
-      speakText(txt); // 🔊 Speak the routing resolution
-    }, 9500); // Delayed slightly to give previous audio track space to wrap up cleanly
+      queueNarration(`Autonomous router analysis complete. Node ${recover?.nodeName} in ${recover?.country} selected as migration target with a trust score of ${fmt(recover?.trustScore)}.`);
+    }, 10000);
 
-    // 3. Workload state freeze and atomic migration shipping
+    // 3. Workload freeze and migration
     setTimeout(() => {
       const recover = window._recoverNode;
       addEvent("migration", "🔄", "Checkpoint freeze initiated — workload state captured at step_3");
       addEvent("migration", "🚀", `Atomic migration: llama3-7b-inference → ${recover?.nodeName}`);
-      const txt = `Freezing localized runtime snapshot. Shipping compute container to ${recover?.city} cluster safely.`;
-      setAiNarration(txt);
-      speakText(txt); // 🔊 Speak the shipping action
-    }, 15000);
+      queueNarration(`Freezing localized runtime snapshot. Shipping compute container to ${recover?.city} cluster safely.`);
+    }, 16000);
 
-    // 4. Success and token generation
+    // 4. Success
     setTimeout(() => {
       const recover = window._recoverNode;
       setNodes(prev => prev.map(n =>
@@ -451,16 +506,12 @@ export default function AuraGridDashboard() {
       ));
       addEvent("success", "✅", `Workload LIVE on ${recover?.nodeName} — zero data loss`);
       addEvent("success", "💰", `${recover?.city} node earning: +0.0012 AUR for hosting migrated task`);
-      
-      const txt = `Migration successful. LLM container is now live on ${recover?.city} node. Added 0.0012 tokens passive income to solar node operators.`;
-      setAiNarration(txt);
-      speakText(txt); // 🔊 Speak earnings and complete restoration status
-      
+      queueNarration(`Migration successful. LLM container is now live on ${recover?.city} node. Added 0.0012 tokens passive income to solar node operators.`);
       setMigrating(false);
       setTokens(t => t + 0.0012);
-    }, 20000);
+    }, 22000);
 
-    // 5. Offline isolation sequence
+    // 5. Offline isolation
     setTimeout(() => {
       const fail = window._failNode;
       setNodes(prev => prev.map(n =>
@@ -469,21 +520,18 @@ export default function AuraGridDashboard() {
           : n
       ));
       addEvent("info", "🔴", `${fail?.nodeName} (${fail?.city}): Gracefully taken offline — awaiting power restore`);
-      
-      const txt = `Unstable node in ${fail?.city} isolated from core tree safely. Topology network running stable on solar host backups.`;
-      setAiNarration(txt);
-      speakText(txt); // 🔊 Final infrastructure stability log spoken
-    }, 25500);
+      queueNarration(`Unstable node in ${fail?.city} isolated from core tree safely. Topology network running stable on solar host backups.`);
+    }, 28000);
 
     const tick = setInterval(() => setTokens(t => t + 0.0001), 1500);
-    setTimeout(() => clearInterval(tick), 30000);
+    setTimeout(() => clearInterval(tick), 35000);
   }
 
   // ── Real Socket.IO connection ─────────────────────────────────
   useEffect(() => {
     const COORDINATOR_URL = "https://auragrid-coordinator.onrender.com";
     import("socket.io-client").then(({ io }) => {
-      const socket = io(COORDINATOR_URL, { 
+      const socket = io(COORDINATOR_URL, {
         transports: ["websocket", "polling"],
         reconnection: true,
         reconnectionAttempts: Infinity,
@@ -492,7 +540,7 @@ export default function AuraGridDashboard() {
 
       socket.on("connect", () => {
         setConnected(true);
-        addEvent("success", "🔌", `Live connection to AuraGrid Coordinator`);
+        addEvent("success", "🔌", "Live connection to AuraGrid Coordinator");
       });
 
       socket.on("node:update", (data) => {
@@ -598,7 +646,7 @@ export default function AuraGridDashboard() {
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
               {[
-                { label: "ONLINE",    count: onlineCount,   color: C.green },
+                { label: "ONLINE",   count: onlineCount,   color: C.green },
                 { label: "UNSTABLE", count: unstableCount, color: C.amber },
                 { label: "NODES",    count: nodes.length,  color: C.cyan  },
               ].map(p => (
@@ -687,10 +735,12 @@ export default function AuraGridDashboard() {
           )}
 
           {/* Main layout grid */}
-          <div style={{ display: "grid", 
+          <div style={{
+            display: "grid",
             gridTemplateColumns: window.innerWidth < 900 ? "1fr" : "1fr 340px",
-            gap: 20 }}>
-            
+            gap: 20,
+          }}>
+
             {/* Left Column: Canvas + Cards */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
@@ -698,7 +748,7 @@ export default function AuraGridDashboard() {
                 background: C.surface,
                 border: `1px solid ${C.border}`,
                 borderRadius: 12,
-                height: 400,
+                height: 420,
                 overflow: "hidden",
                 position: "relative",
               }}>
@@ -706,7 +756,7 @@ export default function AuraGridDashboard() {
                   position: "absolute", top: 12, left: 16, zIndex: 2,
                   fontSize: 10, color: C.dim, fontFamily: "monospace", letterSpacing: 2,
                 }}>
-                  NETWORK GLOBAL
+                  NETWORK GLOBAL · {nodes.length} NODES
                 </div>
                 <GridCanvas nodes={nodes} migrating={migrating} />
               </div>
@@ -732,7 +782,7 @@ export default function AuraGridDashboard() {
               </div>
             </div>
 
-            {/* Right Column: Sidebar Stats */}
+            {/* Right Column: Sidebar */}
             <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
               <TokenCounter tokens={tokens} />
@@ -750,11 +800,11 @@ export default function AuraGridDashboard() {
                   NETWORK STATS
                 </div>
                 {[
-                  { label: "Total Nodes",       value: nodes.length,                                              color: C.cyan  },
-                  { label: "Migrations Today",  value: Math.floor(tokens / 0.0012),                               color: C.amber },
-                  { label: "Avg Trust Score",   value: nodes.length ? fmt(nodes.reduce((a, n) => a + (n.trustScore ?? 0), 0) / nodes.length) : "—", color: C.green },
-                  { label: "Countries",      value: [...new Set(nodes.map(n => n.country))].length || "—", color: C.cyan  },
-                  { label: "Network Uptime", value: "99.8%",                                                              color: C.green },
+                  { label: "Total Nodes",      value: nodes.length,                                                                                               color: C.cyan  },
+                  { label: "Migrations Today", value: Math.floor(tokens / 0.0012),                                                                                color: C.amber },
+                  { label: "Avg Trust Score",  value: nodes.length ? fmt(nodes.reduce((a, n) => a + (n.trustScore ?? 0), 0) / nodes.length) : "—",               color: C.green },
+                  { label: "Countries",        value: [...new Set(nodes.map(n => n.country))].filter(Boolean).length || "—",                                      color: C.cyan  },
+                  { label: "Network Uptime",   value: "99.8%",                                                                                                    color: C.green },
                 ].map(s => (
                   <div key={s.label} style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                     <span style={{ fontSize: 12, color: C.dim, fontFamily: "monospace" }}>{s.label}</span>
@@ -780,13 +830,12 @@ export default function AuraGridDashboard() {
             color: C.muted,
             fontFamily: "monospace",
           }}>
-            <span>AuraGrid DePIN Network · Built at Lablab.ai Hackathon · Team: NickySantus, Abdoul Rahim, Ian Kusapali, Naimat Khan, Kamso Daniel.</span>
-            <span style={{ color: C.cyan }}>Powered by Band AI · Ollama · Socket.IO · PostgreSQL</span>
+            <span>AuraGrid DePIN Network · Built at Lablab.ai Hackathon · Team: NickySantus, Abdoul R. Quedraogo, Ian Kusapali, Naimat Khan, Kamso Daniel.</span>
+            <span style={{ color: C.cyan }}>Powered by Band AI · HuggingFace · Socket.IO · PostgreSQL</span>
           </div>
         </div>
       </div>
 
-      {/* ⚡ Passing dynamic telemetery summaries into 'hint' handles answering user voice questions! */}
       <VoiceAgent aiNarration={aiNarration} hint={getTelemetrySummaryString()} nodes={nodes} />
     </>
   );
