@@ -199,20 +199,20 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
   }
 
   async function handleRecordingStop() {
-    setMode("thinking");
-    const currentPlaybackId = ++playbackIdRef.current;
+  setMode("thinking");
+  const currentPlaybackId = ++playbackIdRef.current;
 
-    const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-    const form = new FormData();
-    form.append("audio", blob, "voice.webm");
-    form.append("hint", gatherTelemetryHint());
-    
-    // Notice: Since STT is mocked on the server to return 'architecture',
-    // we explicitly tell the backend this came via audio processing.
-    form.append("text", "architecture"); 
+  const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+  const form = new FormData();
+  form.append("audio", blob, "voice.webm");
+  form.append("hint", gatherTelemetryHint());
+  
+  // CHANGE THIS: Send an empty or general string so the backend handles 
+  // live AI generation or telemetry analysis when using actual voice.
+  form.append("text", "voice_audio_stream"); 
 
-    await executeVoiceChatTransaction(form, currentPlaybackId);
-  }
+  await executeVoiceChatTransaction(form, currentPlaybackId);
+}
 
   // ── Handle Direct Text Submissions (Bulletproof for Demo) ────
   async function handleTextSubmit(e) {
@@ -384,7 +384,7 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
                 type="text"
                 value={manualInput}
                 onChange={(e) => setManualInput(e.target.value)}
-                placeholder="Type query (status, token, architecture...)"
+                placeholder="Message AuraGrid"
                 disabled={mode === "thinking"}
                 style={{
                   flex: 1,
