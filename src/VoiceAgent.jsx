@@ -204,31 +204,23 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
 
     const blob = new Blob(chunksRef.current, { type: "audio/webm" });
     const form = new FormData();
+    
+    // Pass the raw audio binary file to the server
     form.append("audio", blob, "voice.webm");
     form.append("hint", gatherTelemetryHint());
     
-    // ── AUTOMATIC VOICE PAYLOAD SELECTOR ──
-    // This defaults to your main status check, but if Ian types a keyword 
-    // into the input box before speaking, it switches scenarios automatically!
-    let voicePayload = "AuraGrid, what is our current network status?";
+    // DYNAMIC PAYLOAD SELECTOR: Use what the user typed into the input field. 
+    // If the input box is completely empty, default to a standard status update query.
+    const cleanInput = manualInput.trim();
+    const voicePayload = cleanInput !== "" ? cleanInput : "Give me a quick network status report update.";
 
-    const currentInput = manualInput.toLowerCase().trim();
-    
-    if (currentInput.includes("arch") || currentInput.includes("system")) {
-      voicePayload = "Can you explain the system architecture?";
-    } else if (currentInput.includes("token") || currentInput.includes("earn")) {
-      voicePayload = "How do operators earn the AUR token?";
-    } else if (currentInput.includes("outage") || currentInput.includes("fail") || currentInput.includes("lose")) {
-      voicePayload = "We just lost a node. How are you handling this outage?";
-    }
-
-    // Sends the clean, readable text prompt so the backend can intercept it perfectly
     form.append("text", voicePayload); 
+    setManualInput(""); // Clear the input field for visual cleanliness
 
     await executeVoiceChatTransaction(form, currentPlaybackId);
   }
 
-  // ── Handle Direct Text Submissions (Bulletproof for Demo) ────
+  // ── Handle Direct Text Submissions ───────────────────────────
   async function handleTextSubmit(e) {
     e.preventDefault();
     if (!manualInput.trim() || mode === "thinking") return;
