@@ -207,23 +207,22 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     form.append("audio", blob, "voice.webm");
     form.append("hint", gatherTelemetryHint());
     
-    // ── AUTOMATIC SCENARIO DETECTOR FOR VOICE ──
-    // This inspects the log history to see what the last action or prompt state was.
-    // If no text was typed yet, it defaults to the main "status" phrase.
+    // ── AUTOMATIC VOICE PAYLOAD SELECTOR ──
+    // This defaults to your main status check, but if Ian types a keyword 
+    // into the input box before speaking, it switches scenarios automatically!
     let voicePayload = "AuraGrid, what is our current network status?";
 
-    // Look at what was last typed or logged to auto-switch scenarios for Ian!
-    const lastLogText = log.length ? log[log.length - 1].text.toLowerCase() : "";
+    const currentInput = manualInput.toLowerCase().trim();
     
-    if (lastLogText.includes("arch") || manualInput.toLowerCase().includes("arch")) {
+    if (currentInput.includes("arch") || currentInput.includes("system")) {
       voicePayload = "Can you explain the system architecture?";
-    } else if (lastLogText.includes("token") || manualInput.toLowerCase().includes("token")) {
+    } else if (currentInput.includes("token") || currentInput.includes("earn")) {
       voicePayload = "How do operators earn the AUR token?";
-    } else if (lastLogText.includes("outage") || lastLogText.includes("fail") || manualInput.toLowerCase().includes("outage")) {
+    } else if (currentInput.includes("outage") || currentInput.includes("fail") || currentInput.includes("lose")) {
       voicePayload = "We just lost a node. How are you handling this outage?";
     }
 
-    // This ensures your backend 'checkCoreDemoMatrix' matches the keywords perfectly!
+    // Sends the clean, readable text prompt so the backend can intercept it perfectly
     form.append("text", voicePayload); 
 
     await executeVoiceChatTransaction(form, currentPlaybackId);
