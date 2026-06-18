@@ -75,7 +75,7 @@ Dashboard (NickySantus) — Visualizes everything live
 
 ## 👥 Team
 Built at Lablab.ai Hackathon by:
-- **NickySantus O. C** — Backend, Database, Dashboard, Coordinator
+- **NickySantus O. C** — Backend, Database, Frontend-Dashboard, Team Lead
 - **Abdoul R. Ouedraogo** — AI Model Router, Band AI Agent, Voice API
 - **Naimat Khan** — Trust Score Algorithm, Power Outage Simulator
 - **Kamso Daniel** — Edge Telemetry Script
