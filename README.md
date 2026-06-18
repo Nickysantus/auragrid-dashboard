@@ -1,14 +1,14 @@
 # AuraGrid Dashboard
 
-Real-time command center for the AuraGrid DePIN network. Visualizes live node telemetry, power grid stability, workload migrations, and AUR token earnings across decentralized solar-powered infrastructure nodes.
+Real-time command center for the AuraGrid DePIN network. Visualizes live node telemetry, power grid stability, workload migrations, and AUR token earnings across decentralized solar-powered infrastructure nodes in 15 countries.
 
 ## 🌍 Live Demo
 **https://auragrid-dashboard.vercel.app**
 
-> Click **▶ RUN DEMO** to see a live NEPA outage simulation with AI-narrated workload migration across 20 nodes in 15 countries.
+> Click **▶ RUN DEMO** to see a live power grid instability simulation with AI-narrated workload migration across 20 nodes in 15 countries — zero data loss guaranteed.
 
 ## ✨ Features
-- 🗺️ Live network topology map with animated power lines
+- 🗺️ 🗺️ Live global network map with animated power lines
 - 📡 Real-time node telemetry across 15 countries and 20 nodes
 - ⚡ Automatic workload migration visualization
 - 🤖 AI-narrated migration decisions (Band AI + HuggingFace)
@@ -51,16 +51,22 @@ npm start
 ☀️ Solar/Inverter Software (Simulated)
       ↓
 Kamso — Edge Telemetry Script
+
       ↓ Socket.IO heartbeat
 NickySantus — Coordinator Server + PostgreSQL/Neon DB
+
       ↓ Stores telemetry, detects instability
 Naimat — Trust Score Algorithm + Power Outage Simulator
+
       ↓ Scores nodes, triggers crisis
 Ian — LangGraph State Machine (Python + FastAPI)
+
       ↓ Makes migration decision
 NickySantus — Migration Engine executes task move
+
       ↓ Fires migration event
 Abdoul — Band AI Agent narrates + Voice API speaks alert
+
       ↓ 
 NickySantus — Dashboard visualizes everything live
       ↓
