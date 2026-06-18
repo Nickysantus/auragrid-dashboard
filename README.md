@@ -48,19 +48,23 @@ npm start
 
 \```
 
-Edge Nodes (Kamso)
-
+☀️ Solar/Inverter Software (Simulated)
+      ↓
+Kamso — Edge Telemetry Script
       ↓ Socket.IO heartbeat
-Coordinator Server (NickySantus)
-
-      ↓ Crisis detected
-LangGraph Brain (Ian) — Python + FastAPI
-
-      ↓ Migration decision
-Band AI Agent (Abdoul) — Narrates decision
-
-      ↓ Task migrated
-Dashboard (NickySantus) — Visualizes everything live
+NickySantus — Coordinator Server + PostgreSQL/Neon DB
+      ↓ Stores telemetry, detects instability
+Naimat — Trust Score Algorithm + Power Outage Simulator
+      ↓ Scores nodes, triggers crisis
+Ian — LangGraph State Machine (Python + FastAPI)
+      ↓ Makes migration decision
+NickySantus — Migration Engine executes task move
+      ↓ Fires migration event
+Abdoul — Band AI Agent narrates + Voice API speaks alert
+      ↓ 
+NickySantus — Dashboard visualizes everything live
+      ↓
+💰 AUR Token earned by receiving node
 
 \```
 
