@@ -199,20 +199,35 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
   }
 
   async function handleRecordingStop() {
-  setMode("thinking");
-  const currentPlaybackId = ++playbackIdRef.current;
+    setMode("thinking");
+    const currentPlaybackId = ++playbackIdRef.current;
 
-  const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-  const form = new FormData();
-  form.append("audio", blob, "voice.webm");
-  form.append("hint", gatherTelemetryHint());
-  
-  // CHANGE THIS: Send an empty or general string so the backend handles 
-  // live AI generation or telemetry analysis when using actual voice.
-  form.append("text", "voice_audio_stream"); 
+    const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+    const form = new FormData();
+    form.append("audio", blob, "voice.webm");
+    form.append("hint", gatherTelemetryHint());
+    
+    // ── AUTOMATIC SCENARIO DETECTOR FOR VOICE ──
+    // This inspects the log history to see what the last action or prompt state was.
+    // If no text was typed yet, it defaults to the main "status" phrase.
+    let voicePayload = "AuraGrid, what is our current network status?";
 
-  await executeVoiceChatTransaction(form, currentPlaybackId);
-}
+    // Look at what was last typed or logged to auto-switch scenarios for Ian!
+    const lastLogText = log.length ? log[log.length - 1].text.toLowerCase() : "";
+    
+    if (lastLogText.includes("arch") || manualInput.toLowerCase().includes("arch")) {
+      voicePayload = "Can you explain the system architecture?";
+    } else if (lastLogText.includes("token") || manualInput.toLowerCase().includes("token")) {
+      voicePayload = "How do operators earn the AUR token?";
+    } else if (lastLogText.includes("outage") || lastLogText.includes("fail") || manualInput.toLowerCase().includes("outage")) {
+      voicePayload = "We just lost a node. How are you handling this outage?";
+    }
+
+    // This ensures your backend 'checkCoreDemoMatrix' matches the keywords perfectly!
+    form.append("text", voicePayload); 
+
+    await executeVoiceChatTransaction(form, currentPlaybackId);
+  }
 
   // ── Handle Direct Text Submissions (Bulletproof for Demo) ────
   async function handleTextSubmit(e) {
