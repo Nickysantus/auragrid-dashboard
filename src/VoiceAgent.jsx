@@ -12,7 +12,7 @@ function unlockAudio() {
   });
 }
 
-const COORDINATOR = "https://auragrid-coordinator.onrender.com";
+const COORDINATOR = "http://localhost:5000";
 
 const C = {
   bg:       "#080B14",
