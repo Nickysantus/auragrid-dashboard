@@ -45,3 +45,38 @@ npm start
 🇳🇬 Nigeria · 🇬🇭 Ghana · 🇸🇳 Senegal · 🇰🇪 Kenya · 🇨🇮 Côte d'Ivoire · 🇹🇬 Togo · 🇧🇯 Benin · 🇬🇳 Guinea · 🇸🇱 Sierra Leone · 🇲🇼 Malawi · 🇧🇫 Burkina Faso · 🇲🇱 Mali · 🇳🇪 Niger · 🇨🇲 Cameroon · 🇵🇰 Pakistan
 
 ## 🏗️ System Architecture
+
+Edge Nodes (Kamso)
+
+↓ Socket.IO heartbeat
+
+Coordinator Server (NickySantus)
+
+↓ Crisis detected
+
+LangGraph Brain (Ian) — Python + FastAPI
+
+↓ Migration decision
+
+Band AI Agent (Abdoul) — Narrates decision
+
+↓ Task migrated
+
+Dashboard (NickySantus) — Visualizes everything live
+
+## 🧠 Tech Stack
+- React
+- Socket.IO Client
+- Band AI Framework
+- HuggingFace Inference API
+- Google TTS API
+- LangGraph (Python)
+- PostgreSQL (Neon DB)
+
+## 👥 Team
+Built at Lablab.ai Hackathon by:
+- **NickySantus O. C** — Backend, Database, Dashboard, Coordinator
+- **Abdoul R. Ouedraogo** — AI Model Router, Band AI Agent, Voice API
+- **Naimat Khan** — Trust Score Algorithm, Power Outage Simulator
+- **Kamso Daniel** — Edge Telemetry Script
+- **Ian** — LangGraph State Machine, Video Presentation
