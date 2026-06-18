@@ -46,23 +46,19 @@ npm start
 
 ## 🏗️ System Architecture
 
+## 🏗️ System Architecture
+
+\```
 Edge Nodes (Kamso)
-
-↓ Socket.IO heartbeat
-
+      ↓ Socket.IO heartbeat
 Coordinator Server (NickySantus)
-
-↓ Crisis detected
-
+      ↓ Crisis detected
 LangGraph Brain (Ian) — Python + FastAPI
-
-↓ Migration decision
-
+      ↓ Migration decision
 Band AI Agent (Abdoul) — Narrates decision
-
-↓ Task migrated
-
+      ↓ Task migrated
 Dashboard (NickySantus) — Visualizes everything live
+\```
 
 ## 🧠 Tech Stack
 - React
