@@ -362,7 +362,7 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
 
             {transcript && (
               <div style={{ background: C.bg, borderRadius: 8, padding: "8px 12px", border: `1px solid ${C.border}` }}>
-                <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 4 }}>DECODED INPUT</div>
+                <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 4 }}>USER PROMPT</div>
                 <div style={{ fontSize: 12, color: C.text, fontFamily: "'JetBrains Mono', monospace", lineHeight: "1.4" }}>{transcript}</div>
               </div>
             )}
