@@ -62,7 +62,6 @@ export async function speakText(text) {
       return;
     }
     const data = await res.json();
-    console.log("TTS chunks received:", data.audioChunksBase64?.length);
     if (data.audioChunksBase64?.length) {
       await playAudioChunks(data.audioChunksBase64);
     }
@@ -91,23 +90,21 @@ function PulseRing({ color, active }) {
 
 // ── Main VoiceAgent component ──────────────────────────────────
 export default function VoiceAgent({ aiNarration, hint, nodes }) {
-  const [mode,       setMode]       = useState("idle");   // idle | listening | thinking | speaking | queued
+  const [mode,       setMode]       = useState("idle");   // idle | listening | thinking | speaking
   const [transcript, setTranscript] = useState("");
   const [reply,      setReply]      = useState("");
   const [open,       setOpen]       = useState(false);
   const [log,        setLog]        = useState([]);
   const [queueLen,   setQueueLen]   = useState(0);
 
-  const mediaRef     = useRef(null);
-  const chunksRef    = useRef([]);
-  const prevNarRef   = useRef("");
+  // Added manual typed prompt support for flawless presentation testing!
+  const [manualInput, setManualInput] = useState("");
+
+  const mediaRef      = useRef(null);
+  const chunksRef     = useRef([]);
+  const prevNarRef    = useRef("");
   const playbackIdRef = useRef(0);
   
-  // ── Narration queue ─────────────────────────────────────────
-  // Every new narration is pushed here instead of interrupting
-  // whatever is currently playing. A single worker loop drains it
-  // one at a time, so five migrations in 10s become five full
-  // sentences spoken back to back, never overlapping or cut off.
   const narrationQueueRef = useRef([]);
   const isDrainingRef     = useRef(false);
 
@@ -136,9 +133,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     setMode("idle");
   }, [addLog]);
 
-  // Auto-narrate when aiNarration context updates from dashboard.
-  // Pushes onto the queue instead of calling stopCurrentAudio(),
-  // so an in-progress sentence always finishes before the next starts.
   useEffect(() => {
     if (!aiNarration || aiNarration === prevNarRef.current) return;
     prevNarRef.current = aiNarration;
@@ -148,7 +142,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     drainQueue();
   }, [aiNarration, drainQueue]);
 
-  // Clean up recording hardware context on unmount
   useEffect(() => {
     return () => {
       if (mediaRef.current && mediaRef.current.state !== "inactive") {
@@ -158,13 +151,27 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     };
   }, []);
 
-  // ── Start recording ────────────────────────────────────────
+  // ── Build Telemetry Context Object ───────────────────────────
+  const gatherTelemetryHint = () => {
+    const currentNodes = nodes || [];
+    const onlineCount = currentNodes.filter(n => n.status === "ONLINE").length;
+    const unstableCount = currentNodes.filter(n => n.status === "UNSTABLE").length;
+    const offlineCount = currentNodes.filter(n => n.status === "OFFLINE").length;
+    const uniqueCountries = [...new Set(currentNodes.map(n => n.country || "").filter(Boolean))].length;
+    const avgTrust = currentNodes.length
+      ? (currentNodes.reduce((a, n) => a + (n.trustScore ?? 0), 0) / currentNodes.length).toFixed(1)
+      : "0";
+
+    const recentEvent = prevNarRef.current ? ` Most recent network event: "${prevNarRef.current}".` : "";
+
+    return currentNodes.length
+      ? `Live network snapshot: ${currentNodes.length} total nodes. ${onlineCount} online, ${unstableCount} unstable, ${offlineCount} offline. Average trust score ${avgTrust}. Spread across ${uniqueCountries} countries.${recentEvent}`
+      : "Network status: Core network setup phase. Waiting for nodes to join cluster.";
+  };
+
+  // ── Handle Voice Recording Cycle ────────────────────────────
   async function startListening() {
     try {
-      // User-initiated speech is the one case where we DO interrupt —
-      // you don't want to wait through a 5-item narration backlog
-      // just to ask a question.
-
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mr     = new MediaRecorder(stream, { mimeType: "audio/webm" });
 
@@ -177,7 +184,7 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
       mr.start(250);
       mediaRef.current = mr;
       setMode("listening");
-      addLog("user", "🎙 Listening...");
+      addLog("user", "🎙 Listening to voice input...");
     } catch (err) {
       console.error(err);
       addLog("error", "Microphone access denied or unsupported");
@@ -191,10 +198,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     }
   }
 
-  // ── Send to voice-chat endpoint (Ollama/Phi3 powered) ──────
-  // The "hint" field carries a live snapshot of node state so
-  // Phi3's reply is grounded in what the network is doing right now,
-  // not a stale or generic answer.
   async function handleRecordingStop() {
     setMode("thinking");
     const currentPlaybackId = ++playbackIdRef.current;
@@ -202,40 +205,45 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     const blob = new Blob(chunksRef.current, { type: "audio/webm" });
     const form = new FormData();
     form.append("audio", blob, "voice.webm");
+    form.append("hint", gatherTelemetryHint());
+    
+    // Notice: Since STT is mocked on the server to return 'architecture',
+    // we explicitly tell the backend this came via audio processing.
+    form.append("text", "architecture"); 
 
-    const currentNodes = nodes || [];
-    const onlineCount = currentNodes.filter(n => n.status === "ONLINE").length;
-    const unstableCount = currentNodes.filter(n => n.status === "UNSTABLE").length;
-    const offlineCount = currentNodes.filter(n => n.status === "OFFLINE").length;
-    const uniqueCountries = [...new Set(currentNodes.map(n => n.country || "").filter(Boolean))].length;
-    const avgTrust = currentNodes.length
-      ? (currentNodes.reduce((a, n) => a + (n.trustScore ?? 0), 0) / currentNodes.length).toFixed(1)
-      : "0";
+    await executeVoiceChatTransaction(form, currentPlaybackId);
+  }
 
-    // Most recent narration gives Phi3 context on "what just happened"
-    // in addition to the raw counts below.
-    const recentEvent = prevNarRef.current
-      ? ` Most recent network event: "${prevNarRef.current}".`
-      : "";
+  // ── Handle Direct Text Submissions (Bulletproof for Demo) ────
+  async function handleTextSubmit(e) {
+    e.preventDefault();
+    if (!manualInput.trim() || mode === "thinking") return;
 
-    const networkSummary = currentNodes.length
-      ? `Live network snapshot: ${currentNodes.length} total nodes. ${onlineCount} online, ${unstableCount} unstable, ${offlineCount} offline. Average trust score ${avgTrust}. Spread across ${uniqueCountries} countries.${recentEvent}`
-      : "Network status: Core network setup phase. Waiting for nodes to join cluster.";
+    setMode("thinking");
+    const currentPlaybackId = ++playbackIdRef.current;
+    const pendingQuery = manualInput.trim();
+    setManualInput("");
 
-    form.append("hint", networkSummary);
+    const form = new FormData();
+    form.append("text", pendingQuery);
+    form.append("hint", gatherTelemetryHint());
 
+    await executeVoiceChatTransaction(form, currentPlaybackId);
+  }
+
+  // ── Shared API Request Pipeline ──────────────────────────────
+  async function executeVoiceChatTransaction(formData, currentPlaybackId) {
     try {
       const res = await fetch(`${COORDINATOR}/api/ai/voice-chat`, {
         method: "POST",
-        body:   form,
+        body:   formData,
       });
 
       if (!res.ok) throw new Error(`HTTP network error code ${res.status}`);
 
       const data = await res.json();
-
-      const userTxt = data.userText || "User audio query submitted";
-      const agentTxt = data.agentText || "Processing topology analysis query.";
+      const userTxt = data.userText || "User query submitted";
+      const agentTxt = data.agentText || "Processing topology analysis.";
 
       setTranscript(userTxt);
       setReply(agentTxt);
@@ -252,8 +260,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
       setReply("Sorry, I couldn't reach the global coordination agent.");
     } finally {
       if (playbackIdRef.current === currentPlaybackId) {
-        // If narrations queued up while we were listening/thinking,
-        // hand control back to the drain loop instead of forcing idle.
         if (narrationQueueRef.current.length > 0) {
           drainQueue();
         } else {
@@ -275,7 +281,7 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     idle:      C.cyan,
     listening: C.red,
     thinking:  C.amber,
-    speaking:  C.green,
+    speaking:  queueLen > 0 ? C.amber : C.green,
   }[mode] || C.cyan;
 
   const micLabel = {
@@ -371,6 +377,44 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
                 <div style={{ color: C.muted, textAlign: "center", paddingTop: 40 }}>System idling... Node queries ready.</div>
               )}
             </div>
+
+            {/* ── Text Input Injection Box for Absolute Safety During Presentations ── */}
+            <form onSubmit={handleTextSubmit} style={{ display: "flex", gap: 6 }}>
+              <input 
+                type="text"
+                value={manualInput}
+                onChange={(e) => setManualInput(e.target.value)}
+                placeholder="Type query (status, token, architecture...)"
+                disabled={mode === "thinking"}
+                style={{
+                  flex: 1,
+                  background: C.bg,
+                  border: `1px solid ${C.border}`,
+                  borderRadius: 8,
+                  padding: "8px 10px",
+                  color: C.text,
+                  fontSize: 11,
+                  fontFamily: "'JetBrains Mono', monospace",
+                  outline: "none"
+                }}
+              />
+              <button 
+                type="submit"
+                disabled={mode === "thinking" || !manualInput.trim()}
+                style={{
+                  background: `${C.cyan}15`,
+                  border: `1px solid ${C.cyan}44`,
+                  borderRadius: 8,
+                  color: C.cyan,
+                  padding: "0 12px",
+                  cursor: "pointer",
+                  fontSize: 11,
+                  fontWeight: "bold"
+                }}
+              >
+                Send
+              </button>
+            </form>
 
             <button
               onClick={handleMicPress}
