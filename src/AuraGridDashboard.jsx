@@ -698,7 +698,7 @@ useEffect(() => {
                   position: "absolute", top: 12, left: 16, zIndex: 2,
                   fontSize: 10, color: C.dim, fontFamily: "monospace", letterSpacing: 2,
                 }}>
-                  NETWORK TOPOLOGY
+                  NETWORK GLOBAL 
                 </div>
                 <GridCanvas nodes={nodes} migrating={migrating} />
               </div>

@@ -8,7 +8,7 @@ Real-time command center for the AuraGrid DePIN network. Visualizes live node te
 > Click **▶ RUN DEMO** to see a live power grid instability simulation with AI-narrated workload migration across 20 nodes in 15 countries — zero data loss guaranteed.
 
 ## ✨ Features
-- 🗺️ 🗺️ Live global network map with animated power lines
+- 🗺️ Live global network map with animated power lines
 - 📡 Real-time node telemetry across 15 countries and 20 nodes
 - ⚡ Automatic workload migration visualization
 - 🤖 AI-narrated migration decisions (Band AI + HuggingFace)
@@ -50,6 +50,7 @@ npm start
 
 ☀️ Solar/Inverter Software (Simulated)
       ↓
+
 Kamso — Edge Telemetry Script
 
       ↓ Socket.IO heartbeat
@@ -70,18 +71,23 @@ Abdoul — Band AI Agent narrates + Voice API speaks alert
       ↓ 
 NickySantus — Dashboard visualizes everything live
       ↓
+
 💰 AUR Token earned by receiving node
 
 \```
 
 ## 🧠 Tech Stack
-- React
-- Socket.IO Client
-- Band AI Framework
-- HuggingFace Inference API
-- Google TTS API
-- LangGraph (Python)
-- PostgreSQL (Neon DB)
+- React (Frontend Dashboard)
+- Socket.IO (Real-time Communication)
+- Node.js + Express (Backend Coordinator)
+- PostgreSQL + Prisma + Neon DB (Database)
+- Band AI Framework (Agent Orchestration)
+- HuggingFace Inference API (Cloud LLM)
+- Ollama + phi3 (Local LLM on edge nodes)
+- Google TTS API (Voice Announcements)
+- LangGraph + FastAPI (AI State Machine)
+- Vercel (Frontend Deployment)
+- Render (Backend Deployment)
 
 ## 👥 Team
 Built at Lablab.ai Hackathon by:
