@@ -88,7 +88,6 @@ function PulseRing({ color, active }) {
   );
 }
 
-// ── Main VoiceAgent component ──────────────────────────────────
 export default function VoiceAgent({ aiNarration, hint, nodes }) {
   const [mode,       setMode]       = useState("idle");   // idle | listening | thinking | speaking
   const [transcript, setTranscript] = useState("");
@@ -96,8 +95,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
   const [open,       setOpen]       = useState(false);
   const [log,        setLog]        = useState([]);
   const [queueLen,   setQueueLen]   = useState(0);
-
-  // Added manual typed prompt support for flawless presentation testing!
   const [manualInput, setManualInput] = useState("");
 
   const mediaRef      = useRef(null);
@@ -173,7 +170,8 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
   async function startListening() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr     = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      // Changed to audio/webm;codecs=opus for standard browser compatibility parameters
+      const mr = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
 
       chunksRef.current = [];
       mr.ondataavailable = e => {
@@ -205,19 +203,11 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     const blob = new Blob(chunksRef.current, { type: "audio/webm" });
     const form = new FormData();
     
-    // Pass the raw audio binary file to the server
+    // Append fields strictly for audio-based voice transcription pipelines
     form.append("audio", blob, "voice.webm");
     form.append("hint", gatherTelemetryHint());
-    
-    // DYNAMIC PAYLOAD SELECTOR: Use what the user typed into the input field. 
-    // If the input box is completely empty, default to a standard status update query.
-    const cleanInput = manualInput.trim();
-    const voicePayload = cleanInput !== "" ? cleanInput : "Give me a quick network status report update.";
 
-    form.append("text", voicePayload); 
-    setManualInput(""); // Clear the input field for visual cleanliness
-
-    await executeVoiceChatTransaction(form, currentPlaybackId);
+    await executeVoiceChatTransaction(form, currentPlaybackId, true);
   }
 
   // ── Handle Direct Text Submissions ───────────────────────────
@@ -230,25 +220,34 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     const pendingQuery = manualInput.trim();
     setManualInput("");
 
-    const form = new FormData();
-    form.append("text", pendingQuery);
-    form.append("hint", gatherTelemetryHint());
-
-    await executeVoiceChatTransaction(form, currentPlaybackId);
+    // JSON pipeline submission to avoid multipart header formatting exceptions on standard strings
+    await executeVoiceChatTransaction({
+      text: pendingQuery,
+      hint: gatherTelemetryHint()
+    }, currentPlaybackId, false);
   }
 
   // ── Shared API Request Pipeline ──────────────────────────────
-  async function executeVoiceChatTransaction(formData, currentPlaybackId) {
+  async function executeVoiceChatTransaction(payload, currentPlaybackId, isAudio = false) {
     try {
-      const res = await fetch(`${COORDINATOR}/api/ai/voice-chat`, {
+      // Configuration objects mapping content type mutations explicitly
+      const fetchOptions = {
         method: "POST",
-        body:   formData,
+        body: isAudio ? payload : JSON.stringify(payload)
+      };
+
+      if (!isAudio) {
+        fetchOptions.headers = { "Content-Type": "application/json" };
+      }
+
+      const res = await fetch(`${COORDINATOR}/api/ai/voice-chat`, {
+        ...fetchOptions
       });
 
       if (!res.ok) throw new Error(`HTTP network error code ${res.status}`);
 
       const data = await res.json();
-      const userTxt = data.userText || "User query submitted";
+      const userTxt = data.userText || (isAudio ? "Voice instruction recognized" : "Text query processed");
       const agentTxt = data.agentText || "Processing topology analysis.";
 
       setTranscript(userTxt);
@@ -384,7 +383,7 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
               )}
             </div>
 
-            {/* ── Text Input Injection Box for Absolute Safety During Presentations ── */}
+            {/* ── Text Input Injection Box ── */}
             <form onSubmit={handleTextSubmit} style={{ display: "flex", gap: 6 }}>
               <input 
                 type="text"
@@ -417,9 +416,7 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
                   fontSize: 11,
                   fontWeight: "bold"
                 }}
-              >
-                Send
-              </button>
+              />
             </form>
 
             <button
