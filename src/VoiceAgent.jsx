@@ -1,55 +1,45 @@
+// VoiceAgent.jsx
+// ROLE: Broadcasts network events, migrations and power failures out loud (narration only)
+// Chat/Q&A is handled separately by AuraGridChat.jsx
+
 import { useState, useRef, useEffect, useCallback } from "react";
 
-// ── Unlock AudioContext on first user interaction ─────────────
 let audioUnlocked = false;
 
 function unlockAudio() {
   if (audioUnlocked) return;
   const ctx = new (window.AudioContext || window.webkitAudioContext)();
-  ctx.resume().then(() => {
-    audioUnlocked = true;
-    ctx.close();
-  });
+  ctx.resume().then(() => { audioUnlocked = true; ctx.close(); });
 }
 
-const COORDINATOR = "http://localhost:5000";
+const COORDINATOR = "https://auragrid-coordinator.onrender.com";
 
 const C = {
-  bg:       "#080B14",
-  surface:  "#0D1220",
-  border:   "#1A2540",
-  cyan:     "#00F5FF",
-  amber:    "#FFB800",
-  green:    "#00FF88",
-  red:      "#FF3B3B",
-  muted:    "#4A5568",
-  text:     "#E2E8F0",
-  dim:      "#8892A4",
+  bg:      "#080B14",
+  surface: "#0D1220",
+  border:  "#1A2540",
+  cyan:    "#00F5FF",
+  amber:   "#FFB800",
+  green:   "#00FF88",
+  red:     "#FF3B3B",
+  muted:   "#4A5568",
+  text:    "#E2E8F0",
+  dim:     "#8892A4",
 };
 
-// ── Play base64 audio chunks safely ────────────────────────────
 async function playAudioChunks(chunks) {
   unlockAudio();
   for (const chunk of chunks) {
     await new Promise((resolve) => {
       const audio = new Audio(`data:audio/mp3;base64,${chunk}`);
       audio.onended = resolve;
-      audio.onerror = (e) => {
-        console.warn("Audio chunk error:", e);
-        resolve();
-      };
-      const playPromise = audio.play();
-      if (playPromise !== undefined) {
-        playPromise.catch((err) => {
-          console.warn("Audio play blocked:", err.message);
-          resolve();
-        });
-      }
+      audio.onerror = () => resolve();
+      const p = audio.play();
+      if (p !== undefined) p.catch(() => resolve());
     });
   }
 }
 
-// ── Speak a text string via TTS endpoint ──────────────────────
 export async function speakText(text) {
   try {
     const res = await fetch(`${COORDINATOR}/api/ai/tts`, {
@@ -57,30 +47,21 @@ export async function speakText(text) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text, lang: "en" }),
     });
-    if (!res.ok) {
-      console.warn("TTS backend error:", res.status, await res.text());
-      return;
-    }
+    if (!res.ok) return;
     const data = await res.json();
-    if (data.audioChunksBase64?.length) {
-      await playAudioChunks(data.audioChunksBase64);
-    }
+    if (data.audioChunksBase64?.length) await playAudioChunks(data.audioChunksBase64);
   } catch (err) {
     console.warn("TTS unavailable:", err.message);
   }
 }
 
-// ── Pulse ring animation ───────────────────────────────────────
 function PulseRing({ color, active }) {
   return (
     <span style={{ position: "relative", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
       {active && (
         <span style={{
-          position: "absolute",
-          inset: -6,
-          borderRadius: "50%",
-          border: `2px solid ${color}`,
-          opacity: 0.5,
+          position: "absolute", inset: -6, borderRadius: "50%",
+          border: `2px solid ${color}`, opacity: 0.5,
           animation: "voicePing 1s ease-in-out infinite",
         }} />
       )}
@@ -88,20 +69,18 @@ function PulseRing({ color, active }) {
   );
 }
 
-export default function VoiceAgent({ aiNarration, hint, nodes }) {
-  const [mode,       setMode]       = useState("idle");   // idle | listening | thinking | speaking
-  const [transcript, setTranscript] = useState("");
-  const [reply,      setReply]      = useState("");
-  const [open,       setOpen]       = useState(false);
-  const [log,        setLog]        = useState([]);
-  const [queueLen,   setQueueLen]   = useState(0);
-  const [manualInput, setManualInput] = useState("");
+export default function VoiceAgent({ aiNarration, nodes }) {
+  const [mode,      setMode]      = useState("idle"); // idle | listening | thinking | speaking
+  const [transcript,setTranscript]= useState("");
+  const [reply,     setReply]     = useState("");
+  const [open,      setOpen]      = useState(false);
+  const [log,       setLog]       = useState([]);
+  const [queueLen,  setQueueLen]  = useState(0);
 
-  const mediaRef      = useRef(null);
-  const chunksRef     = useRef([]);
-  const prevNarRef    = useRef("");
-  const playbackIdRef = useRef(0);
-  
+  const mediaRef       = useRef(null);
+  const chunksRef      = useRef([]);
+  const prevNarRef     = useRef("");
+  const playbackIdRef  = useRef(0);
   const narrationQueueRef = useRef([]);
   const isDrainingRef     = useRef(false);
 
@@ -110,30 +89,25 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     setLog(l => [...l.slice(-30), { type, text, time }]);
   }, []);
 
+  // ── Drain narration queue (auto-broadcast) ─────────────────
   const drainQueue = useCallback(async () => {
     if (isDrainingRef.current) return;
     isDrainingRef.current = true;
-
     while (narrationQueueRef.current.length > 0) {
       const next = narrationQueueRef.current.shift();
       setQueueLen(narrationQueueRef.current.length);
       setMode("speaking");
       addLog("announce", next);
-      try {
-        await speakText(next);
-      } catch (err) {
-        console.error("Queued narration playback error:", err);
-      }
+      try { await speakText(next); } catch (err) { console.error(err); }
     }
-
     isDrainingRef.current = false;
     setMode("idle");
   }, [addLog]);
 
+  // ── Auto-broadcast whenever aiNarration changes ────────────
   useEffect(() => {
     if (!aiNarration || aiNarration === prevNarRef.current) return;
     prevNarRef.current = aiNarration;
-
     narrationQueueRef.current.push(aiNarration);
     setQueueLen(narrationQueueRef.current.length);
     drainQueue();
@@ -148,44 +122,33 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     };
   }, []);
 
-  // ── Build Telemetry Context Object ───────────────────────────
-  const gatherTelemetryHint = () => {
-    const currentNodes = nodes || [];
-    const onlineCount = currentNodes.filter(n => n.status === "ONLINE").length;
-    const unstableCount = currentNodes.filter(n => n.status === "UNSTABLE").length;
-    const offlineCount = currentNodes.filter(n => n.status === "OFFLINE").length;
-    const uniqueCountries = [...new Set(currentNodes.map(n => n.country || "").filter(Boolean))].length;
-    const avgTrust = currentNodes.length
-      ? (currentNodes.reduce((a, n) => a + (n.trustScore ?? 0), 0) / currentNodes.length).toFixed(1)
-      : "0";
+  // ── Build telemetry hint from live nodes ───────────────────
+  function buildHint() {
+    const n = nodes || [];
+    if (!n.length) return "Network status: waiting for nodes.";
+    const online   = n.filter(x => x.status === "ONLINE").length;
+    const unstable = n.filter(x => x.status === "UNSTABLE").length;
+    const offline  = n.filter(x => x.status === "OFFLINE").length;
+    const avgTrust = (n.reduce((a, x) => a + (x.trustScore ?? 0), 0) / n.length).toFixed(1);
+    const countries = [...new Set(n.map(x => x.country).filter(Boolean))].length;
+    const recent = prevNarRef.current ? ` Last event: "${prevNarRef.current}".` : "";
+    return `Live network: ${n.length} nodes. ${online} online, ${unstable} unstable, ${offline} offline. Avg trust ${avgTrust}. ${countries} countries.${recent}`;
+  }
 
-    const recentEvent = prevNarRef.current ? ` Most recent network event: "${prevNarRef.current}".` : "";
-
-    return currentNodes.length
-      ? `Live network snapshot: ${currentNodes.length} total nodes. ${onlineCount} online, ${unstableCount} unstable, ${offlineCount} offline. Average trust score ${avgTrust}. Spread across ${uniqueCountries} countries.${recentEvent}`
-      : "Network status: Core network setup phase. Waiting for nodes to join cluster.";
-  };
-
-  // ── Handle Voice Recording Cycle ────────────────────────────
+  // ── Voice recording ────────────────────────────────────────
   async function startListening() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      // Changed to audio/webm;codecs=opus for standard browser compatibility parameters
-      const mr = new MediaRecorder(stream, { mimeType: "audio/webm;codecs=opus" });
-
+      const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
       chunksRef.current = [];
-      mr.ondataavailable = e => {
-        if (e.data && e.data.size > 0) chunksRef.current.push(e.data);
-      };
+      mr.ondataavailable = e => { if (e.data?.size > 0) chunksRef.current.push(e.data); };
       mr.onstop = handleRecordingStop;
-
       mr.start(250);
       mediaRef.current = mr;
       setMode("listening");
-      addLog("user", "🎙 Listening to voice input...");
+      addLog("user", "🎙 Listening...");
     } catch (err) {
-      console.error(err);
-      addLog("error", "Microphone access denied or unsupported");
+      addLog("error", "Microphone access denied");
     }
   }
 
@@ -199,101 +162,53 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
   async function handleRecordingStop() {
     setMode("thinking");
     const currentPlaybackId = ++playbackIdRef.current;
-
     const blob = new Blob(chunksRef.current, { type: "audio/webm" });
     const form = new FormData();
-    
-    // Append fields strictly for audio-based voice transcription pipelines
     form.append("audio", blob, "voice.webm");
-    form.append("hint", gatherTelemetryHint());
+    form.append("hint", buildHint());
+    form.append("text", "Analyze this voice query and report on network status.");
 
-    await executeVoiceChatTransaction(form, currentPlaybackId, true);
-  }
-
-  // ── Handle Direct Text Submissions ───────────────────────────
-  async function handleTextSubmit(e) {
-    e.preventDefault();
-    if (!manualInput.trim() || mode === "thinking") return;
-
-    setMode("thinking");
-    const currentPlaybackId = ++playbackIdRef.current;
-    const pendingQuery = manualInput.trim();
-    setManualInput("");
-
-    // JSON pipeline submission to avoid multipart header formatting exceptions on standard strings
-    await executeVoiceChatTransaction({
-      text: pendingQuery,
-      hint: gatherTelemetryHint()
-    }, currentPlaybackId, false);
-  }
-
-  // ── Shared API Request Pipeline ──────────────────────────────
-  async function executeVoiceChatTransaction(payload, currentPlaybackId, isAudio = false) {
     try {
-      // Configuration objects mapping content type mutations explicitly
-      const fetchOptions = {
-        method: "POST",
-        body: isAudio ? payload : JSON.stringify(payload)
-      };
-
-      if (!isAudio) {
-        fetchOptions.headers = { "Content-Type": "application/json" };
-      }
-
       const res = await fetch(`${COORDINATOR}/api/ai/voice-chat`, {
-        ...fetchOptions
+        method: "POST", body: form,
       });
-
-      if (!res.ok) throw new Error(`HTTP network error code ${res.status}`);
-
+      if (!res.ok) throw new Error(`Server error ${res.status}`);
       const data = await res.json();
-      const userTxt = data.userText || (isAudio ? "Voice instruction recognized" : "Text query processed");
-      const agentTxt = data.agentText || "Processing topology analysis.";
-
+      const userTxt  = data.userText  || "Voice query received";
+      const agentTxt = data.agentText || "Processing...";
       setTranscript(userTxt);
       setReply(agentTxt);
-
-      addLog("user", `You: ${userTxt}`);
+      addLog("user",  `You: ${userTxt}`);
       addLog("agent", `AuraGrid: ${agentTxt}`);
-
       setMode("speaking");
-      if (data.audioChunksBase64) {
-        await playAudioChunks(data.audioChunksBase64);
-      }
+      if (data.audioChunksBase64) await playAudioChunks(data.audioChunksBase64);
     } catch (err) {
-      addLog("error", `Voice chat system failure: ${err.message}`);
-      setReply("Sorry, I couldn't reach the global coordination agent.");
+      addLog("error", `Voice error: ${err.message}`);
+      setReply("Couldn't reach the coordinator.");
     } finally {
       if (playbackIdRef.current === currentPlaybackId) {
-        if (narrationQueueRef.current.length > 0) {
-          drainQueue();
-        } else {
-          setMode("idle");
-        }
+        narrationQueueRef.current.length > 0 ? drainQueue() : setMode("idle");
       }
     }
   }
 
   function handleMicPress() {
-    if (mode === "listening") {
-      stopListening();
-    } else if (mode === "idle" || mode === "speaking") {
-      startListening();
-    }
+    if (mode === "listening") stopListening();
+    else if (mode === "idle" || mode === "speaking") startListening();
   }
 
   const micColor = {
-    idle:      C.cyan,
-    listening: C.red,
-    thinking:  C.amber,
-    speaking:  queueLen > 0 ? C.amber : C.green,
+    idle:     C.cyan,
+    listening:C.red,
+    thinking: C.amber,
+    speaking: queueLen > 0 ? C.amber : C.green,
   }[mode] || C.cyan;
 
   const micLabel = {
-    idle:      "Ask AuraGrid",
-    listening: "Tap to send",
-    thinking:  "Analyzing context...",
-    speaking:  queueLen > 0 ? `Speaking... (${queueLen} queued)` : "Speaking...",
+    idle:     "Broadcast Report",
+    listening:"Tap to send",
+    thinking: "Analyzing...",
+    speaking: queueLen > 0 ? `Broadcasting... (${queueLen} queued)` : "Broadcasting...",
   }[mode] || "Ready";
 
   return (
@@ -313,136 +228,99 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
 
         {open && (
           <div style={{
-            background: C.surface,
-            border: `1px solid ${micColor}44`,
-            borderRadius: 16,
-            padding: 20,
-            width: 320,
-            display: "flex",
-            flexDirection: "column",
-            gap: 14,
-            boxShadow: `0 12px 40px rgba(0,0,0,0.6)`,
+            background: C.surface, border: `1px solid ${micColor}44`,
+            borderRadius: 16, padding: 20, width: 320,
+            display: "flex", flexDirection: "column", gap: 14,
+            boxShadow: "0 12px 40px rgba(0,0,0,0.6)",
             animation: "slideIn 0.2s ease",
           }}>
+
+            {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <span style={{ fontSize: 16 }}>🎙</span>
+                <span style={{ fontSize: 16 }}>📡</span>
                 <span style={{ fontFamily: "'Space Grotesk', sans-serif", fontWeight: 700, color: C.text, fontSize: 14 }}>
-                  AuraGrid Intelligence
+                  Network Broadcaster
                 </span>
               </div>
               <span style={{
                 fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
-                color: micColor, textTransform: "uppercase", letterSpacing: 1,
-                fontWeight: "bold"
+                color: micColor, textTransform: "uppercase", letterSpacing: 1, fontWeight: "bold",
               }}>
                 ● {mode}
               </span>
             </div>
 
+            {/* Description */}
+            <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", lineHeight: 1.5 }}>
+              Auto-broadcasts power failures, migrations and network events out loud. Press mic to trigger a voice report.
+            </div>
+
+            {/* Queue indicator */}
             {queueLen > 0 && (
               <div style={{
                 fontSize: 11, color: C.amber, fontFamily: "'JetBrains Mono', monospace",
                 background: `${C.amber}11`, border: `1px solid ${C.amber}33`,
                 borderRadius: 6, padding: "6px 10px",
               }}>
-                ⏳ {queueLen} narration{queueLen > 1 ? "s" : ""} queued — finishing current sentence first
+                ⏳ {queueLen} broadcast{queueLen > 1 ? "s" : ""} queued
               </div>
             )}
 
+            {/* Last broadcast */}
             {transcript && (
               <div style={{ background: C.bg, borderRadius: 8, padding: "8px 12px", border: `1px solid ${C.border}` }}>
-                <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 4 }}>USER PROMPT</div>
-                <div style={{ fontSize: 12, color: C.text, fontFamily: "'JetBrains Mono', monospace", lineHeight: "1.4" }}>{transcript}</div>
+                <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 4 }}>VOICE INPUT</div>
+                <div style={{ fontSize: 12, color: C.text, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.4 }}>{transcript}</div>
               </div>
             )}
 
             {reply && (
               <div style={{ background: `${C.cyan}0b`, border: `1px solid ${C.cyan}22`, borderRadius: 8, padding: "8px 12px" }}>
-                <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 4 }}>ROUTER FEEDBACK (Phi3)</div>
-                <div style={{ fontSize: 12, color: C.cyan, fontFamily: "'JetBrains Mono', monospace", lineHeight: "1.4" }}>{reply}</div>
+                <div style={{ fontSize: 10, color: C.dim, fontFamily: "monospace", marginBottom: 4 }}>BROADCAST REPORT</div>
+                <div style={{ fontSize: 12, color: C.cyan, fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.4 }}>{reply}</div>
               </div>
             )}
 
+            {/* Event log */}
             <div style={{
               height: 110, overflowY: "auto",
               fontFamily: "'JetBrains Mono', monospace", fontSize: 10,
               display: "flex", flexDirection: "column", gap: 6,
-              background: "rgba(0,0,0,0.15)", padding: "6px 8px", borderRadius: 6
+              background: "rgba(0,0,0,0.15)", padding: "6px 8px", borderRadius: 6,
             }}>
               {log.slice().reverse().map((l, i) => (
                 <div key={i} style={{
-                  lineHeight: "1.3",
+                  lineHeight: 1.3,
                   color: l.type === "agent" ? C.cyan : l.type === "error" ? C.red : l.type === "announce" ? C.amber : C.dim,
                 }}>
                   <span style={{ color: C.muted }}>[{l.time}]</span> {l.text}
                 </div>
               ))}
               {log.length === 0 && (
-                <div style={{ color: C.muted, textAlign: "center", paddingTop: 40 }}>System idling... Node queries ready.</div>
+                <div style={{ color: C.muted, textAlign: "center", paddingTop: 36 }}>
+                  Monitoring network... events will broadcast automatically.
+                </div>
               )}
             </div>
 
-            {/* ── Text Input Injection Box ── */}
-            <form onSubmit={handleTextSubmit} style={{ display: "flex", gap: 6 }}>
-              <input 
-                type="text"
-                value={manualInput}
-                onChange={(e) => setManualInput(e.target.value)}
-                placeholder="Message AuraGrid"
-                disabled={mode === "thinking"}
-                style={{
-                  flex: 1,
-                  background: C.bg,
-                  border: `1px solid ${C.border}`,
-                  borderRadius: 8,
-                  padding: "8px 10px",
-                  color: C.text,
-                  fontSize: 11,
-                  fontFamily: "'JetBrains Mono', monospace",
-                  outline: "none"
-                }}
-              />
-              <button 
-                type="submit"
-                disabled={mode === "thinking" || !manualInput.trim()}
-                style={{
-                  background: `${C.cyan}15`,
-                  border: `1px solid ${C.cyan}44`,
-                  borderRadius: 8,
-                  color: C.cyan,
-                  padding: "0 12px",
-                  cursor: "pointer",
-                  fontSize: 11,
-                  fontWeight: "bold"
-                }}
-              />
-            </form>
-
+            {/* Mic button */}
             <button
               onClick={handleMicPress}
               disabled={mode === "thinking"}
               style={{
                 background: mode === "listening" ? `${C.red}18` : `${C.cyan}0f`,
                 border: `1px solid ${micColor}88`,
-                borderRadius: 10,
-                color: micColor,
+                borderRadius: 10, color: micColor,
                 fontFamily: "'Space Grotesk', sans-serif",
-                fontWeight: 700,
-                fontSize: 13,
-                padding: "12px 0",
+                fontWeight: 700, fontSize: 13, padding: "12px 0",
                 cursor: mode === "thinking" ? "not-allowed" : "pointer",
-                width: "100%",
-                transition: "all 0.2s",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
+                width: "100%", transition: "all 0.2s",
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
               }}
             >
               <span style={{
-                fontSize: 16,
-                display: "inline-block",
+                fontSize: 16, display: "inline-block",
                 animation: mode === "thinking" ? "voiceSpin 1s linear infinite" : "none",
               }}>
                 {mode === "listening" ? "⏹" : mode === "thinking" ? "⚙️" : mode === "speaking" ? "🔊" : "🎙"}
@@ -452,16 +330,14 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
           </div>
         )}
 
+        {/* Floating mic button */}
         <button
           onClick={() => setOpen(o => !o)}
           style={{
-            width: 56, height: 56,
-            borderRadius: "50%",
+            width: 56, height: 56, borderRadius: "50%",
             background: `linear-gradient(135deg, ${micColor}15, ${C.surface})`,
-            border: `2px solid ${micColor}`,
-            color: micColor,
-            fontSize: 22,
-            cursor: "pointer",
+            border: `2px solid ${micColor}`, color: micColor,
+            fontSize: 22, cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center",
             position: "relative",
             transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
@@ -469,7 +345,7 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
           }}
         >
           <PulseRing color={micColor} active={mode === "listening" || mode === "speaking"} />
-          {open ? "✕" : mode === "speaking" ? "🔊" : mode === "listening" ? "⏹" : "🎙"}
+          {open ? "✕" : mode === "speaking" ? "🔊" : mode === "listening" ? "⏹" : "📡"}
         </button>
       </div>
     </>

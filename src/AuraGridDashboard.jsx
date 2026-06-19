@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import IntroScreen from "./IntroScreen";
 import VoiceAgent from "./VoiceAgent";
+import AuraGridChat from "./AuraGridChat";
 
 // ── Design tokens ──────────────────────────────────────────────
 const C = {
@@ -782,6 +783,7 @@ useEffect(() => {
         </div>
       </div>
       <VoiceAgent aiNarration={aiNarration} nodes={nodes} />
+      <AuraGridChat nodes={nodes} />
     </>
   );
 }
