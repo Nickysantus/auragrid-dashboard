@@ -120,7 +120,6 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
     }
   };
 }, []);
-
   // ── Voice recording ────────────────────────────────────────
   async function startListening() {
   try {
