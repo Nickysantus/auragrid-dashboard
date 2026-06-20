@@ -78,7 +78,7 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
   const [queueLen,  setQueueLen]  = useState(0);
 
   const mediaRef       = useRef(null);
-  const prevNarRef     = useRef("");s
+  const prevNarRef     = useRef("");
   const narrationQueueRef = useRef([]);
   const isDrainingRef     = useRef(false);
 
