@@ -78,9 +78,7 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
   const [queueLen,  setQueueLen]  = useState(0);
 
   const mediaRef       = useRef(null);
-  const chunksRef      = useRef([]);
-  const prevNarRef     = useRef("");
-  const playbackIdRef  = useRef(0);
+  const prevNarRef     = useRef("");s
   const narrationQueueRef = useRef([]);
   const isDrainingRef     = useRef(false);
 
@@ -114,26 +112,14 @@ export default function VoiceAgent({ aiNarration, hint, nodes }) {
   }, [aiNarration, drainQueue]);
 
   useEffect(() => {
-    return () => {
-      if (mediaRef.current && mediaRef.current.state !== "inactive") {
-        mediaRef.current.stop();
-        mediaRef.current.stream.getTracks().forEach(t => t.stop());
-      }
-    };
-  }, []);
-
-  // ── Build telemetry hint from live nodes ───────────────────
-  function buildHint() {
-    const n = nodes || [];
-    if (!n.length) return "Network status: waiting for nodes.";
-    const online   = n.filter(x => x.status === "ONLINE").length;
-    const unstable = n.filter(x => x.status === "UNSTABLE").length;
-    const offline  = n.filter(x => x.status === "OFFLINE").length;
-    const avgTrust = (n.reduce((a, x) => a + (x.trustScore ?? 0), 0) / n.length).toFixed(1);
-    const countries = [...new Set(n.map(x => x.country).filter(Boolean))].length;
-    const recent = prevNarRef.current ? ` Last event: "${prevNarRef.current}".` : "";
-    return `Live network: ${n.length} nodes. ${online} online, ${unstable} unstable, ${offline} offline. Avg trust ${avgTrust}. ${countries} countries.${recent}`;
-  }
+  const media = mediaRef.current;
+  return () => {
+    if (media && media.state !== "inactive") {
+      media.stop();
+      media.stream.getTracks().forEach(t => t.stop());
+    }
+  };
+}, []);
 
   // ── Voice recording ────────────────────────────────────────
   async function startListening() {
