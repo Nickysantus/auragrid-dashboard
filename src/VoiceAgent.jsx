@@ -69,7 +69,7 @@ function PulseRing({ color, active }) {
   );
 }
 
-export default function VoiceAgent({ aiNarration, nodes }) {
+export default function VoiceAgent({ aiNarration, hint, nodes }) {
   const [mode,      setMode]      = useState("idle"); // idle | listening | thinking | speaking
   const [transcript,setTranscript]= useState("");
   const [reply,     setReply]     = useState("");
@@ -138,7 +138,6 @@ export default function VoiceAgent({ aiNarration, nodes }) {
   // ── Voice recording ────────────────────────────────────────
   async function startListening() {
   try {
-    stopCurrentAudio();
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     
