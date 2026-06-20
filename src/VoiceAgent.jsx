@@ -137,65 +137,81 @@ export default function VoiceAgent({ aiNarration, nodes }) {
 
   // ── Voice recording ────────────────────────────────────────
   async function startListening() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
-      chunksRef.current = [];
-      mr.ondataavailable = e => { if (e.data?.size > 0) chunksRef.current.push(e.data); };
-      mr.onstop = handleRecordingStop;
-      mr.start(250);
-      mediaRef.current = mr;
-      setMode("listening");
-      addLog("user", "🎙 Listening...");
-    } catch (err) {
-      addLog("error", "Microphone access denied");
+  try {
+    stopCurrentAudio();
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    
+    if (!SpeechRecognition) {
+      addLog("error", "Speech recognition not supported — use Chrome");
+      return;
     }
-  }
 
-  function stopListening() {
-    if (mediaRef.current && mediaRef.current.state !== "inactive") {
-      mediaRef.current.stop();
-      mediaRef.current.stream.getTracks().forEach(t => t.stop());
-    }
-  }
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
 
-  async function handleRecordingStop() {
-    setMode("thinking");
-    const currentPlaybackId = ++playbackIdRef.current;
-    const blob = new Blob(chunksRef.current, { type: "audio/webm" });
-    const form = new FormData();
-    form.append("audio", blob, "voice.webm");
-    form.append("hint", buildHint());
-    form.append("text", "Analyze this voice query and report on network status.");
+    setMode("listening");
+    addLog("user", "🎙 Listening...");
 
-    try {
-      const res = await fetch(`${COORDINATOR}/api/ai/voice-chat`, {
-        method: "POST", body: form,
-      });
-      if (!res.ok) throw new Error(`Server error ${res.status}`);
-      const data = await res.json();
-      const userTxt  = data.userText  || "Voice query received";
-      const agentTxt = data.agentText || "Processing...";
-      setTranscript(userTxt);
-      setReply(agentTxt);
-      addLog("user",  `You: ${userTxt}`);
-      addLog("agent", `AuraGrid: ${agentTxt}`);
-      setMode("speaking");
-      if (data.audioChunksBase64) await playAudioChunks(data.audioChunksBase64);
-    } catch (err) {
-      addLog("error", `Voice error: ${err.message}`);
-      setReply("Couldn't reach the coordinator.");
-    } finally {
-      if (playbackIdRef.current === currentPlaybackId) {
-        narrationQueueRef.current.length > 0 ? drainQueue() : setMode("idle");
+    recognition.onresult = async (event) => {
+      const spokenText = event.results[0][0].transcript;
+      addLog("user", `You said: ${spokenText}`);
+      setTranscript(spokenText);
+      setMode("thinking");
+
+      // Send spoken text directly to backend
+      try {
+        const res = await fetch(`${COORDINATOR}/api/ai/voice-chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: spokenText,
+            hint: hint || "",
+          }),
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const agentTxt = data.agentText || "Processing query.";
+        setReply(agentTxt);
+        addLog("agent", `AuraGrid: ${agentTxt}`);
+
+        setMode("speaking");
+        if (data.audioChunksBase64) {
+          await playAudioChunks(data.audioChunksBase64);
+        }
+      } catch (err) {
+        addLog("error", `Error: ${err.message}`);
+      } finally {
+        setMode("idle");
       }
-    }
+    };
+
+    recognition.onerror = (event) => {
+      addLog("error", `Mic error: ${event.error}`);
+      setMode("idle");
+    };
+
+    recognition.onend = () => {
+      if (mode === "listening") setMode("idle");
+    };
+
+    recognition.start();
+
+  } catch (err) {
+    addLog("error", "Microphone access denied");
+    setMode("idle");
   }
+}
 
   function handleMicPress() {
-    if (mode === "listening") stopListening();
-    else if (mode === "idle" || mode === "speaking") startListening();
+  if (mode === "idle") {
+    startListening();
   }
+}
 
   const micColor = {
     idle:     C.cyan,
